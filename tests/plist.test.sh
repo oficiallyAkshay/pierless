@@ -15,14 +15,14 @@ dir="$(new_tmpdir)"
 rendered="$dir/rendered.plist"
 
 sed \
-  -e "s|@@LABEL@@|gangplank.runner|g" \
-  -e "s|@@RUNNER_DIR@@|/Users/tester/.gangplank/runner|g" \
-  -e "s|@@HOOK@@|/Users/tester/.gangplank/runner/hooks/job-started-gate.sh|g" \
+  -e "s|@@LABEL@@|pierless.runner|g" \
+  -e "s|@@RUNNER_DIR@@|/Users/tester/.pierless/runner|g" \
+  -e "s|@@HOOK@@|/Users/tester/.pierless/runner/hooks/job-started-gate.sh|g" \
   -e "s|@@ALLOWED_WORKFLOW_REF@@|owner/repo/.github/workflows/deploy.yml@refs/heads/main|g" \
   -e "s|@@ALLOWED_REPOSITORY@@|owner/repo|g" \
   -e "s|@@ALLOWED_REF@@|refs/heads/main|g" \
   -e "s|@@ALLOWED_JOB@@|deploy|g" \
-  -e "s|@@LOG@@|/Users/tester/.gangplank/runner/runner.log|g" \
+  -e "s|@@LOG@@|/Users/tester/.pierless/runner/runner.log|g" \
   -e "s|@@PATH@@|/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin|g" \
   -e "s|@@HOME@@|/Users/tester|g" \
   "$TEMPLATE" > "$rendered"
@@ -35,7 +35,7 @@ assert_contains "$content" "ACTIONS_RUNNER_HOOK_JOB_STARTED" "plist: ACTIONS_RUN
 assert_contains "$content" "/bin/bash" "plist: /bin/bash present"
 assert_contains "$content" "<string>-c</string>" "plist: uses -c"
 assert_not_contains "$content" "<string>-lc</string>" "plist: never uses -lc"
-assert_contains "$content" "gangplank.runner" "plist: label substituted"
+assert_contains "$content" "pierless.runner" "plist: label substituted"
 assert_contains "$content" "owner/repo/.github/workflows/deploy.yml@refs/heads/main" "plist: allowed workflow ref substituted"
 
 if command -v plutil >/dev/null 2>&1; then

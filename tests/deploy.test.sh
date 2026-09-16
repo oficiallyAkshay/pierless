@@ -70,7 +70,7 @@ push_commit_from_dev() {
 }
 
 run_deploy() {
-  # args after HOST override: any GANGPLANK_* env assignments as KEY=VALUE
+  # args after HOST override: any PIERLESS_* env assignments as KEY=VALUE
   local out err ec
   local log lockdir ghoutput statedir
   log="$(mktemp)"
@@ -80,10 +80,10 @@ run_deploy() {
   out="$(mktemp)"; err="$(mktemp)"
 
   ( cd "$HOST" && \
-    GANGPLANK_REPO="$HOST" \
-    GANGPLANK_LOG="$log" \
-    GANGPLANK_LOCK_DIR="$lockdir/lock" \
-    GANGPLANK_STATE_DIR="$statedir" \
+    PIERLESS_REPO="$HOST" \
+    PIERLESS_LOG="$log" \
+    PIERLESS_LOCK_DIR="$lockdir/lock" \
+    PIERLESS_STATE_DIR="$statedir" \
     GITHUB_OUTPUT="$ghoutput" \
     "$@" \
     bash "$DEPLOY_SCRIPT" ) >"$out" 2>"$err"
@@ -177,7 +177,7 @@ run_deploy env
 assert_exit 0 "$DEPLOY_EXIT" "dirty tree: exits 0"
 assert_contains "$DEPLOY_LOG" "PARKED" "dirty tree: log says PARKED"
 stash_list="$(git -C "$HOST" stash list)"
-assert_contains "$stash_list" "gangplank park" "dirty tree: stash list has gangplank park entry"
+assert_contains "$stash_list" "pierless park" "dirty tree: stash list has pierless park entry"
 readme_after="$(cat "$HOST/README.md")"
 assert_not_contains "$readme_after" "local edit" "dirty tree: local edit not re-applied"
 assert_contains "$readme_after" "third commit" "dirty tree: upstream commit still pulled"
@@ -296,7 +296,7 @@ new_fixture
   git commit -q -m "bump package.json"
   git push -q origin main
 )
-run_deploy env GANGPLANK_INSTALL="package.json=false"
+run_deploy env PIERLESS_INSTALL="package.json=false"
 assert_exit 2 "$DEPLOY_EXIT" "hook failure: exits 2"
 head_after_hookfail="$(git -C "$HOST" rev-parse HEAD)"
 origin_head="$(git -C "$ORIGIN" rev-parse refs/heads/main)"
@@ -325,9 +325,9 @@ echo "$live_owner_pid" > "$lockdir/pid"
 stub_bin sleep 'exit 0'
 out="$(mktemp)"; err="$(mktemp)"; log="$(mktemp)"; ghoutput="$(mktemp)"
 ( cd "$HOST" && \
-  GANGPLANK_REPO="$HOST" \
-  GANGPLANK_LOG="$log" \
-  GANGPLANK_LOCK_DIR="$lockdir" \
+  PIERLESS_REPO="$HOST" \
+  PIERLESS_LOG="$log" \
+  PIERLESS_LOCK_DIR="$lockdir" \
   GITHUB_OUTPUT="$ghoutput" \
   bash "$DEPLOY_SCRIPT" ) >"$out" 2>"$err"
 DEPLOY_EXIT=$?
@@ -345,7 +345,7 @@ lockdir2="$lockbase2/lock"
 mkdir -p "$lockdir2"
 ( sleep 0.1 & echo $! > "$lockdir2/pid" )
 sleep 1
-run_deploy env GANGPLANK_LOCK_DIR="$lockdir2"
+run_deploy env PIERLESS_LOCK_DIR="$lockdir2"
 assert_contains "$DEPLOY_LOG" "stale lock" "stale lock: log mentions stale lock removal"
 assert_exit 0 "$DEPLOY_EXIT" "stale lock: deploy still proceeds"
 
@@ -360,17 +360,17 @@ lockbase3="$(new_tmpdir)"
 lockdir3="$lockbase3/lock"
 mkdir -p "$lockdir3"
 touch -t 202001010000 "$lockdir3"
-run_deploy env GANGPLANK_LOCK_DIR="$lockdir3"
+run_deploy env PIERLESS_LOCK_DIR="$lockdir3"
 assert_contains "$DEPLOY_LOG" "stale lock with no pid file removed" "stale lock, no pid file: log names the removal"
 assert_exit 0 "$DEPLOY_EXIT" "stale lock, no pid file: deploy still proceeds"
 assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "stale lock, no pid file: deploy actually pulled"
 
-# --- GANGPLANK_REPO unset -> bad config ---
+# --- PIERLESS_REPO unset -> bad config ---
 new_fixture
 out="$(mktemp)"; err="$(mktemp)"
-( cd "$HOST" && env -u GANGPLANK_REPO bash "$DEPLOY_SCRIPT" ) >"$out" 2>"$err"
+( cd "$HOST" && env -u PIERLESS_REPO bash "$DEPLOY_SCRIPT" ) >"$out" 2>"$err"
 DEPLOY_EXIT=$?
-assert_exit 64 "$DEPLOY_EXIT" "GANGPLANK_REPO unset: exits 64"
+assert_exit 64 "$DEPLOY_EXIT" "PIERLESS_REPO unset: exits 64"
 rm -f "$out" "$err"
 
 # --- fetch failure ---
@@ -380,17 +380,17 @@ run_deploy env
 assert_exit 5 "$DEPLOY_EXIT" "fetch failure: exits 5"
 mv "${ORIGIN}.gone" "$ORIGIN" 2>/dev/null || true
 
-# --- GANGPLANK_PRUNE_WORKTREES=false skips the prune ---
+# --- PIERLESS_PRUNE_WORKTREES=false skips the prune ---
 # The skip note is logged at debug level (deploy.sh's debug() helper only
-# writes when GANGPLANK_DEBUG=1) — set it so the note is observable.
+# writes when PIERLESS_DEBUG=1) — set it so the note is observable.
 new_fixture
 push_commit_from_dev "prune-skip commit"
-run_deploy env GANGPLANK_PRUNE_WORKTREES=false GANGPLANK_DEBUG=1
+run_deploy env PIERLESS_PRUNE_WORKTREES=false PIERLESS_DEBUG=1
 assert_exit 0 "$DEPLOY_EXIT" "prune skipped: exits 0"
 assert_contains "$DEPLOY_LOG" "skipping prune" "prune skipped: log names the prune step"
 
-# --- GANGPLANK_SERVICES_DIR plist named <self-label>.plist is a hand step ---
-# GANGPLANK_SERVICES_DIR is documented as repo-relative (deploy.sh's own
+# --- PIERLESS_SERVICES_DIR plist named <self-label>.plist is a hand step ---
+# PIERLESS_SERVICES_DIR is documented as repo-relative (deploy.sh's own
 # header comment) — an absolute path never matches the relative paths
 # `git diff --name-only` reports, so the hook silently no-ops.
 new_fixture
@@ -400,8 +400,8 @@ calls_log="$(new_tmpdir)/launchctl-calls.log"
 (
   cd "$DEV" || exit 1
   mkdir -p services
-  echo '<plist self-label v1/>' > services/ai.gangplank.self.plist
-  git add services/ai.gangplank.self.plist
+  echo '<plist self-label v1/>' > services/ai.pierless.self.plist
+  git add services/ai.pierless.self.plist
   git commit -q -m "add self plist"
   git push -q origin main
 )
@@ -411,16 +411,16 @@ calls_log="$(new_tmpdir)/launchctl-calls.log"
 )
 (
   cd "$DEV" || exit 1
-  echo '<plist self-label v2/>' > services/ai.gangplank.self.plist
-  git add services/ai.gangplank.self.plist
+  echo '<plist self-label v2/>' > services/ai.pierless.self.plist
+  git add services/ai.pierless.self.plist
   git commit -q -m "change self plist"
   git push -q origin main
 )
-LAUNCHCTL_CALLS_LOG="$calls_log" run_deploy env GANGPLANK_SERVICES_DIR="services" GANGPLANK_SELF_LABEL="ai.gangplank.self"
+LAUNCHCTL_CALLS_LOG="$calls_log" run_deploy env PIERLESS_SERVICES_DIR="services" PIERLESS_SELF_LABEL="ai.pierless.self"
 assert_exit 0 "$DEPLOY_EXIT" "self-plist change: exits 0"
 assert_contains "$DEPLOY_LOG" "reload it by hand" "self-plist change: log calls it a hand step"
 calls_content="$(cat "$calls_log" 2>/dev/null || true)"
-assert_not_contains "$calls_content" "ai.gangplank.self" "self-plist change: launchctl never called with the self label"
+assert_not_contains "$calls_content" "ai.pierless.self" "self-plist change: launchctl never called with the self label"
 
 # --- services hook: a new plist is copied and bootstrapped ---
 new_fixture
@@ -431,14 +431,14 @@ new_plist_calls="$(new_tmpdir)/launchctl-calls.log"
 (
   cd "$DEV" || exit 1
   mkdir -p services
-  echo '<plist new-daemon v1/>' > services/ai.gangplank.newdaemon.plist
-  git add services/ai.gangplank.newdaemon.plist
+  echo '<plist new-daemon v1/>' > services/ai.pierless.newdaemon.plist
+  git add services/ai.pierless.newdaemon.plist
   git commit -q -m "add new daemon plist"
   git push -q origin main
 )
-LAUNCHCTL_CALLS_LOG="$new_plist_calls" run_deploy env HOME="$new_plist_home" GANGPLANK_SERVICES_DIR="services"
+LAUNCHCTL_CALLS_LOG="$new_plist_calls" run_deploy env HOME="$new_plist_home" PIERLESS_SERVICES_DIR="services"
 assert_exit 0 "$DEPLOY_EXIT" "new plist: exits 0"
-installed_new_plist="$new_plist_home/Library/LaunchAgents/ai.gangplank.newdaemon.plist"
+installed_new_plist="$new_plist_home/Library/LaunchAgents/ai.pierless.newdaemon.plist"
 if [ -f "$installed_new_plist" ]; then
   pass "new plist: copy lands in the fake HOME/Library/LaunchAgents"
 else
@@ -452,8 +452,8 @@ new_fixture
 (
   cd "$DEV" || exit 1
   mkdir -p services
-  echo '<plist to-disable v1/>' > services/ai.gangplank.tobedisabled.plist
-  git add services/ai.gangplank.tobedisabled.plist
+  echo '<plist to-disable v1/>' > services/ai.pierless.tobedisabled.plist
+  git add services/ai.pierless.tobedisabled.plist
   git commit -q -m "add tobedisabled plist"
   git push -q origin main
 )
@@ -463,65 +463,65 @@ disable_calls="$(new_tmpdir)/launchctl-calls.log"
 : > "$disable_calls"
 (
   cd "$DEV" || exit 1
-  git mv services/ai.gangplank.tobedisabled.plist services/ai.gangplank.tobedisabled.plist.disabled
+  git mv services/ai.pierless.tobedisabled.plist services/ai.pierless.tobedisabled.plist.disabled
   git commit -q -m "disable daemon"
   git push -q origin main
 )
-LAUNCHCTL_CALLS_LOG="$disable_calls" run_deploy env HOME="$(new_tmpdir)" GANGPLANK_SERVICES_DIR="services"
+LAUNCHCTL_CALLS_LOG="$disable_calls" run_deploy env HOME="$(new_tmpdir)" PIERLESS_SERVICES_DIR="services"
 assert_exit 0 "$DEPLOY_EXIT" "disabled plist: exits 0"
 assert_contains "$DEPLOY_LOG" "renamed to .disabled" "disabled plist: log calls out the rename"
 disable_calls_content="$(cat "$disable_calls")"
 assert_contains "$disable_calls_content" "bootout" "disabled plist: launchctl bootout recorded"
-assert_contains "$disable_calls_content" "ai.gangplank.tobedisabled" "disabled plist: bootout named the right label"
+assert_contains "$disable_calls_content" "ai.pierless.tobedisabled" "disabled plist: bootout named the right label"
 
 # --- services hook: a deleted plist is unloaded and its copy removed ---
 new_fixture
 (
   cd "$DEV" || exit 1
   mkdir -p services
-  echo '<plist to-delete v1/>' > services/ai.gangplank.todelete.plist
-  git add services/ai.gangplank.todelete.plist
+  echo '<plist to-delete v1/>' > services/ai.pierless.todelete.plist
+  git add services/ai.pierless.todelete.plist
   git commit -q -m "add todelete plist"
   git push -q origin main
 )
 ( cd "$HOST" || exit 1; git pull -q origin main )
 delete_home="$(new_tmpdir)"
 mkdir -p "$delete_home/Library/LaunchAgents"
-echo '<plist stale copy/>' > "$delete_home/Library/LaunchAgents/ai.gangplank.todelete.plist"
+echo '<plist stale copy/>' > "$delete_home/Library/LaunchAgents/ai.pierless.todelete.plist"
 stub_bin launchctl 'echo "launchctl $*" >> "$LAUNCHCTL_CALLS_LOG"; exit 0'
 delete_calls="$(new_tmpdir)/launchctl-calls.log"
 : > "$delete_calls"
 (
   cd "$DEV" || exit 1
-  git rm -q services/ai.gangplank.todelete.plist
+  git rm -q services/ai.pierless.todelete.plist
   git commit -q -m "remove todelete plist"
   git push -q origin main
 )
-LAUNCHCTL_CALLS_LOG="$delete_calls" run_deploy env HOME="$delete_home" GANGPLANK_SERVICES_DIR="services"
+LAUNCHCTL_CALLS_LOG="$delete_calls" run_deploy env HOME="$delete_home" PIERLESS_SERVICES_DIR="services"
 assert_exit 0 "$DEPLOY_EXIT" "deleted plist: exits 0"
 assert_contains "$DEPLOY_LOG" "gone (removed or renamed to .disabled) — unloading" "deleted plist: log calls out the removal"
 delete_calls_content="$(cat "$delete_calls")"
 assert_contains "$delete_calls_content" "bootout" "deleted plist: launchctl bootout recorded"
-if [ -f "$delete_home/Library/LaunchAgents/ai.gangplank.todelete.plist" ]; then
+if [ -f "$delete_home/Library/LaunchAgents/ai.pierless.todelete.plist" ]; then
   fail "deleted plist: stale copy removed from LaunchAgents (still present)"
 else
   pass "deleted plist: stale copy removed from LaunchAgents"
 fi
 
-# --- GANGPLANK_KICK: kickstart called for every named label ---
+# --- PIERLESS_KICK: kickstart called for every named label ---
 new_fixture
 push_commit_from_dev "kick commit"
 stub_bin launchctl 'echo "launchctl $*" >> "$LAUNCHCTL_CALLS_LOG"; exit 0'
 kick_calls="$(new_tmpdir)/launchctl-calls.log"
 : > "$kick_calls"
-LAUNCHCTL_CALLS_LOG="$kick_calls" run_deploy env GANGPLANK_KICK="daemon.one daemon.two"
+LAUNCHCTL_CALLS_LOG="$kick_calls" run_deploy env PIERLESS_KICK="daemon.one daemon.two"
 assert_exit 0 "$DEPLOY_EXIT" "kick: exits 0"
 kick_calls_content="$(cat "$kick_calls")"
 assert_contains "$kick_calls_content" "kickstart -k gui/" "kick: launchctl kickstart -k invoked"
 assert_contains "$kick_calls_content" "daemon.one" "kick: daemon.one kicked"
 assert_contains "$kick_calls_content" "daemon.two" "kick: daemon.two kicked"
 
-# --- GANGPLANK_INSTALL=none skips every install hook ---
+# --- PIERLESS_INSTALL=none skips every install hook ---
 new_fixture
 (
   cd "$DEV" || exit 1
@@ -530,9 +530,9 @@ new_fixture
   git commit -q -m "bump package.json"
   git push -q origin main
 )
-run_deploy env GANGPLANK_INSTALL=none GANGPLANK_DEBUG=1
+run_deploy env PIERLESS_INSTALL=none PIERLESS_DEBUG=1
 assert_exit 0 "$DEPLOY_EXIT" "install=none: exits 0"
-assert_contains "$DEPLOY_LOG" "GANGPLANK_INSTALL=none, skipping install hooks" "install=none: log names the skip"
+assert_contains "$DEPLOY_LOG" "PIERLESS_INSTALL=none, skipping install hooks" "install=none: log names the skip"
 assert_not_contains "$DEPLOY_LOG" "hook: install in" "install=none: no install hook ran"
 
 # --- custom glob=command pair runs in the changed file's directory ---
@@ -545,7 +545,7 @@ new_fixture
   git commit -q -m "add marker"
   git push -q origin main
 )
-run_deploy env GANGPLANK_INSTALL="marker.txt=touch ran-custom-hook.txt"
+run_deploy env PIERLESS_INSTALL="marker.txt=touch ran-custom-hook.txt"
 assert_exit 0 "$DEPLOY_EXIT" "custom glob: exits 0"
 if [ -f "$HOST/sub/ran-custom-hook.txt" ]; then
   pass "custom glob: command ran in the changed file's directory"
@@ -553,9 +553,9 @@ else
   fail "custom glob: command ran in the changed file's directory (marker not found)"
 fi
 
-# --- GANGPLANK_DEBUG=1 prints debug lines; unset prints none ---
+# --- PIERLESS_DEBUG=1 prints debug lines; unset prints none ---
 new_fixture
-run_deploy env GANGPLANK_DEBUG=1
+run_deploy env PIERLESS_DEBUG=1
 assert_exit 0 "$DEPLOY_EXIT" "debug on: exits 0"
 assert_contains "$DEPLOY_LOG" "debug: behind=0 ahead=0" "debug on: debug lines present"
 
@@ -564,14 +564,14 @@ run_deploy env
 assert_exit 0 "$DEPLOY_EXIT" "debug off: exits 0"
 assert_not_contains "$DEPLOY_LOG" "debug:" "debug off: no debug lines"
 
-# --- GANGPLANK_DRY_RUN=1: deploy.sh has no dry-run support, so it is
+# --- PIERLESS_DRY_RUN=1: deploy.sh has no dry-run support, so it is
 # inert — the flag changes nothing and a real deploy still happens.
 new_fixture
 push_commit_from_dev "dry-run-flag commit"
-run_deploy env GANGPLANK_DRY_RUN=1
-assert_exit 0 "$DEPLOY_EXIT" "GANGPLANK_DRY_RUN=1: exits 0 same as without it"
-assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "GANGPLANK_DRY_RUN=1: still pulls for real (flag is a no-op in deploy.sh)"
-assert_eq "true" "$(gh_output_value deployed)" "GANGPLANK_DRY_RUN=1: deployed=true (not a dry run)"
+run_deploy env PIERLESS_DRY_RUN=1
+assert_exit 0 "$DEPLOY_EXIT" "PIERLESS_DRY_RUN=1: exits 0 same as without it"
+assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "PIERLESS_DRY_RUN=1: still pulls for real (flag is a no-op in deploy.sh)"
+assert_eq "true" "$(gh_output_value deployed)" "PIERLESS_DRY_RUN=1: deployed=true (not a dry run)"
 
 # --- worktree prune: gh reports MERGED for one branch, OPEN for another ---
 new_fixture
@@ -624,7 +624,7 @@ else
   fail "worktree prune: open local branch kept (was deleted)"
 fi
 
-# --- GANGPLANK_BRANCH tracks a non-main branch end to end ---
+# --- PIERLESS_BRANCH tracks a non-main branch end to end ---
 base_nb="$(new_tmpdir)"
 ORIGIN="$base_nb/origin.git"
 HOST="$base_nb/host"
@@ -660,7 +660,7 @@ git clone -q "$ORIGIN" "$HOST"
   git commit -q -m "release commit"
   git push -q origin release
 )
-run_deploy env GANGPLANK_BRANCH=release
+run_deploy env PIERLESS_BRANCH=release
 assert_exit 0 "$DEPLOY_EXIT" "non-main branch: exits 0"
 assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "non-main branch: pulled the release-branch commit"
 release_branch_after="$(git -C "$HOST" symbolic-ref --short HEAD)"
@@ -669,11 +669,11 @@ readme_on_release="$(cat "$HOST/README.md")"
 assert_contains "$readme_on_release" "release work" "non-main branch: release commit content landed"
 
 
-# --- GANGPLANK_REPO points at something that is not a git checkout ---
+# --- PIERLESS_REPO points at something that is not a git checkout ---
 not_a_repo="$(new_tmpdir)/plainfolder"
 mkdir -p "$not_a_repo"
 out="$(mktemp)"; err="$(mktemp)"
-( GANGPLANK_REPO="$not_a_repo" bash "$DEPLOY_SCRIPT" ) >"$out" 2>"$err"
+( PIERLESS_REPO="$not_a_repo" bash "$DEPLOY_SCRIPT" ) >"$out" 2>"$err"
 notrepo_ec=$?
 notrepo_err="$(cat "$err")"
 rm -f "$out" "$err"
@@ -785,31 +785,31 @@ new_fixture
 push_commit_from_dev "onpark commit"
 echo "local edit before a real pull" >> "$HOST/README.md"
 stub_bin record-on-park '{
-  echo "FILES:$GANGPLANK_PARKED_FILES" >> "$ONPARK_LOG"
-  echo "STASH:$GANGPLANK_STASH_NAME" >> "$ONPARK_LOG"
-  echo "RUNURL:$GANGPLANK_RUN_URL" >> "$ONPARK_LOG"
+  echo "FILES:$PIERLESS_PARKED_FILES" >> "$ONPARK_LOG"
+  echo "STASH:$PIERLESS_STASH_NAME" >> "$ONPARK_LOG"
+  echo "RUNURL:$PIERLESS_RUN_URL" >> "$ONPARK_LOG"
 }'
 onpark_log="$(new_tmpdir)/onpark.log"
 : > "$onpark_log"
-ONPARK_LOG="$onpark_log" run_deploy env GANGPLANK_ON_PARK="record-on-park" GANGPLANK_RUN_URL="https://example.test/run/1"
+ONPARK_LOG="$onpark_log" run_deploy env PIERLESS_ON_PARK="record-on-park" PIERLESS_RUN_URL="https://example.test/run/1"
 assert_exit 0 "$DEPLOY_EXIT" "dirty+new commit: exits 0"
 assert_contains "$DEPLOY_LOG" "PARKED 1 file(s): README.md" "dirty+new commit: log names the parked file"
 stash_list_onpark="$(git -C "$HOST" stash list)"
-assert_contains "$stash_list_onpark" "gangplank park" "dirty+new commit: stash present"
+assert_contains "$stash_list_onpark" "pierless park" "dirty+new commit: stash present"
 onpark_content="$(cat "$onpark_log" 2>/dev/null)"
 assert_contains "$onpark_content" "FILES:README.md" "dirty+new commit: on_park called with the parked file named"
-assert_contains "$onpark_content" "STASH:gangplank park" "dirty+new commit: on_park called with the stash name"
-assert_contains "$onpark_content" "RUNURL:https://example.test/run/1" "dirty+new commit: on_park sees GANGPLANK_RUN_URL when set"
+assert_contains "$onpark_content" "STASH:pierless park" "dirty+new commit: on_park called with the stash name"
+assert_contains "$onpark_content" "RUNURL:https://example.test/run/1" "dirty+new commit: on_park sees PIERLESS_RUN_URL when set"
 
 # --- on_park hook fails: non-fatal, deploy still exits 0 ---------------
 new_fixture
 push_commit_from_dev "onpark-fail commit"
 echo "local edit ahead of a failing on_park hook" >> "$HOST/README.md"
 stub_bin failing-on-park 'exit 7'
-run_deploy env GANGPLANK_ON_PARK="failing-on-park"
+run_deploy env PIERLESS_ON_PARK="failing-on-park"
 assert_exit 0 "$DEPLOY_EXIT" "on_park hook fails: still exits 0 (non-fatal)"
 assert_contains "$DEPLOY_LOG" "PARKED 1 file(s): README.md" "on_park hook fails: parked file still logged"
-assert_contains "$DEPLOY_LOG" "hook: GANGPLANK_ON_PARK command failed (non-fatal)" "on_park hook fails: failure line logged"
+assert_contains "$DEPLOY_LOG" "hook: PIERLESS_ON_PARK command failed (non-fatal)" "on_park hook fails: failure line logged"
 
 # --- multiple parked files are all named in the PARKED line -------------
 new_fixture
@@ -822,7 +822,7 @@ assert_contains "$DEPLOY_LOG" "PARKED 2 file(s):" "multi-park: log names 2 files
 assert_contains "$DEPLOY_LOG" "README.md" "multi-park: log lists README.md"
 assert_contains "$DEPLOY_LOG" "scratch.txt" "multi-park: log lists scratch.txt"
 stash_list_multipark="$(git -C "$HOST" stash list)"
-assert_contains "$stash_list_multipark" "gangplank park" "multi-park: stash present"
+assert_contains "$stash_list_multipark" "pierless park" "multi-park: stash present"
 
 # --- PARK FAILED: git stash push itself fails, deploy refused -----------
 new_fixture
@@ -869,7 +869,7 @@ assert_eq "$before_restorefail_head" "$after_restorefail_head" "restore failed: 
 restorefail_readme="$(cat "$HOST/README.md")"
 assert_not_contains "$restorefail_readme" "local edit stuck in the stash" "restore failed: edit not back in the tree (still stashed)"
 restorefail_stash_list="$(git -C "$HOST" stash list)"
-assert_contains "$restorefail_stash_list" "gangplank park" "restore failed: edit still recoverable from the stash"
+assert_contains "$restorefail_stash_list" "pierless park" "restore failed: edit still recoverable from the stash"
 
 # --- clean tree with a pull to do: nothing parked, on_park never runs ---
 new_fixture
@@ -877,7 +877,7 @@ push_commit_from_dev "no-park commit"
 stub_bin record-on-park-2 'echo "CALLED" >> "$ONPARK_LOG2"'
 onpark_log2="$(new_tmpdir)/onpark2.log"
 : > "$onpark_log2"
-ONPARK_LOG2="$onpark_log2" run_deploy env GANGPLANK_ON_PARK="record-on-park-2"
+ONPARK_LOG2="$onpark_log2" run_deploy env PIERLESS_ON_PARK="record-on-park-2"
 assert_exit 0 "$DEPLOY_EXIT" "clean+new commit: exits 0"
 assert_not_contains "$DEPLOY_LOG" "PARKED" "clean+new commit: no PARKED line"
 onpark2_content="$(cat "$onpark_log2" 2>/dev/null)"
@@ -898,12 +898,12 @@ pre_pull_sha="$(git -C "$HOST" rev-parse HEAD)"
 (
   cd "$DEV" || exit 1
   mkdir -p services
-  echo '<plist resume-daemon v1/>' > services/ai.gangplank.resume.plist
-  git add services/ai.gangplank.resume.plist
+  echo '<plist resume-daemon v1/>' > services/ai.pierless.resume.plist
+  git add services/ai.pierless.resume.plist
   git commit -q -m "add resume daemon plist"
   git push -q origin main
 )
-LAUNCHCTL_CALLS_LOG="$resume_calls" run_deploy env HOME="$resume_home" GANGPLANK_SERVICES_DIR="services"
+LAUNCHCTL_CALLS_LOG="$resume_calls" run_deploy env HOME="$resume_home" PIERLESS_SERVICES_DIR="services"
 assert_exit 0 "$DEPLOY_EXIT" "hook idempotency: first pull exits 0"
 resume_state_dir="$DEPLOY_STATE_DIR"
 resume_marker="$resume_state_dir/last-hooked-sha"
@@ -919,7 +919,7 @@ assert_eq "$post_pull_sha" "$(cat "$resume_marker" 2>/dev/null)" "hook idempoten
 # hooks finishing, then run again with nothing new to pull.
 printf '%s\n' "$pre_pull_sha" > "$resume_marker"
 : > "$resume_calls"
-LAUNCHCTL_CALLS_LOG="$resume_calls" run_deploy env HOME="$resume_home" GANGPLANK_SERVICES_DIR="services" GANGPLANK_STATE_DIR="$resume_state_dir"
+LAUNCHCTL_CALLS_LOG="$resume_calls" run_deploy env HOME="$resume_home" PIERLESS_SERVICES_DIR="services" PIERLESS_STATE_DIR="$resume_state_dir"
 assert_exit 0 "$DEPLOY_EXIT" "hook idempotency: resume run exits 0"
 assert_contains "$DEPLOY_LOG" "hooks: resuming from ${pre_pull_sha}" "hook idempotency: log names the resume point"
 resume_calls_content="$(cat "$resume_calls" 2>/dev/null)"
@@ -936,12 +936,12 @@ uptodate_fail_pre_sha="$(git -C "$HOST" rev-parse HEAD)"
   git commit -q -m "bump package.json for the resume-hook-failure case"
   git push -q origin main
 )
-run_deploy env GANGPLANK_INSTALL="none"
+run_deploy env PIERLESS_INSTALL="none"
 assert_exit 0 "$DEPLOY_EXIT" "up-to-date resume, hook fails: first (clean) pull exits 0"
 uptodate_fail_state_dir="$DEPLOY_STATE_DIR"
 uptodate_fail_marker="$uptodate_fail_state_dir/last-hooked-sha"
 printf '%s\n' "$uptodate_fail_pre_sha" > "$uptodate_fail_marker"
-run_deploy env GANGPLANK_INSTALL="package.json=false" GANGPLANK_STATE_DIR="$uptodate_fail_state_dir"
+run_deploy env PIERLESS_INSTALL="package.json=false" PIERLESS_STATE_DIR="$uptodate_fail_state_dir"
 assert_exit 2 "$DEPLOY_EXIT" "up-to-date resume, hook fails: exits 2"
 assert_contains "$DEPLOY_LOG" "up to date, nothing new to pull — hooks never finished last time" "up-to-date resume, hook fails: log says hooks never finished"
 assert_contains "$DEPLOY_LOG" "hooks: resuming from ${uptodate_fail_pre_sha}" "up-to-date resume, hook fails: log names the resume point"
@@ -964,7 +964,7 @@ push_commit_from_dev "further-resume second commit"
 # this one — so this run's own pre-merge SHA (further_resume_c1) is not
 # where hooks resume from; the older marker is.
 printf '%s\n' "$further_resume_c0" > "$further_resume_marker"
-run_deploy env GANGPLANK_STATE_DIR="$further_resume_state_dir"
+run_deploy env PIERLESS_STATE_DIR="$further_resume_state_dir"
 assert_exit 0 "$DEPLOY_EXIT" "further resume: second pull exits 0"
 assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "further resume: second pull log names 1 commit"
 assert_contains "$DEPLOY_LOG" "hooks: resuming from ${further_resume_c0}" "further resume: log names the older resume point, not the pre-merge SHA"
@@ -980,19 +980,19 @@ eqhead_home="$(new_tmpdir)"
 (
   cd "$DEV" || exit 1
   mkdir -p services
-  echo '<plist eqhead-daemon v1/>' > services/ai.gangplank.eqhead.plist
-  git add services/ai.gangplank.eqhead.plist
+  echo '<plist eqhead-daemon v1/>' > services/ai.pierless.eqhead.plist
+  git add services/ai.pierless.eqhead.plist
   git commit -q -m "add eqhead daemon plist"
   git push -q origin main
 )
-LAUNCHCTL_CALLS_LOG="$eqhead_calls" run_deploy env HOME="$eqhead_home" GANGPLANK_SERVICES_DIR="services"
+LAUNCHCTL_CALLS_LOG="$eqhead_calls" run_deploy env HOME="$eqhead_home" PIERLESS_SERVICES_DIR="services"
 assert_exit 0 "$DEPLOY_EXIT" "hook idempotency (marker==HEAD): first pull exits 0"
 eqhead_state_dir="$DEPLOY_STATE_DIR"
 eqhead_marker="$eqhead_state_dir/last-hooked-sha"
 head_after_pull="$(git -C "$HOST" rev-parse HEAD)"
 assert_eq "$head_after_pull" "$(cat "$eqhead_marker" 2>/dev/null)" "hook idempotency (marker==HEAD): marker matches HEAD after the pull"
 : > "$eqhead_calls"
-LAUNCHCTL_CALLS_LOG="$eqhead_calls" run_deploy env HOME="$eqhead_home" GANGPLANK_SERVICES_DIR="services" GANGPLANK_STATE_DIR="$eqhead_state_dir"
+LAUNCHCTL_CALLS_LOG="$eqhead_calls" run_deploy env HOME="$eqhead_home" PIERLESS_SERVICES_DIR="services" PIERLESS_STATE_DIR="$eqhead_state_dir"
 assert_exit 0 "$DEPLOY_EXIT" "hook idempotency (marker==HEAD): second run (up to date) exits 0"
 assert_contains "$DEPLOY_LOG" "up to date, nothing to deploy" "hook idempotency (marker==HEAD): log says up to date"
 assert_not_contains "$DEPLOY_LOG" "hooks: resuming" "hook idempotency (marker==HEAD): no resume line"
@@ -1019,8 +1019,8 @@ logdir_calls="$(new_tmpdir)/launchctl-calls.log"
     echo "<string>${not_yet_dir}/out.log</string>"
     echo '<key>StandardErrorPath</key>'
     echo "<string>${not_yet_dir}/err.log</string>"
-  } > services/ai.gangplank.logdirs.plist
-  git add services/ai.gangplank.logdirs.plist
+  } > services/ai.pierless.logdirs.plist
+  git add services/ai.pierless.logdirs.plist
   git commit -q -m "add logdirs plist"
   git push -q origin main
 )
@@ -1029,7 +1029,7 @@ if [ -d "$not_yet_dir" ]; then
 else
   pass "plist log dirs: directory does not exist before the deploy"
 fi
-LAUNCHCTL_CALLS_LOG="$logdir_calls" run_deploy env HOME="$logdirs_home" GANGPLANK_SERVICES_DIR="services"
+LAUNCHCTL_CALLS_LOG="$logdir_calls" run_deploy env HOME="$logdirs_home" PIERLESS_SERVICES_DIR="services"
 assert_exit 0 "$DEPLOY_EXIT" "plist log dirs: exits 0"
 if [ -d "$not_yet_dir" ]; then
   pass "plist log dirs: StandardOutPath/StandardErrorPath directory created before bootstrap"
@@ -1066,15 +1066,15 @@ plutilok_calls="$(new_tmpdir)/launchctl-calls.log"
   # Deliberately unparseable as a real plist fragment (no <plist><dict>
   # wrapper) — if the real, unstubbed plutil ever ran against this it
   # would fail and fall through to grep; the stub is what must answer.
-  echo '<key>StandardOutPath</key><string>ignored-by-the-stub</string>' > services/ai.gangplank.plutilok.plist
-  git add services/ai.gangplank.plutilok.plist
+  echo '<key>StandardOutPath</key><string>ignored-by-the-stub</string>' > services/ai.pierless.plutilok.plist
+  git add services/ai.pierless.plutilok.plist
   git commit -q -m "add plutilok plist"
   git push -q origin main
 )
 LAUNCHCTL_CALLS_LOG="$plutilok_calls" \
   PLUTILOK_OUT_VAL="${plutilok_out_dir}/out.log" \
   PLUTILOK_ERR_VAL="${plutilok_err_dir}/err.log" \
-  run_deploy env HOME="$plutilok_home" GANGPLANK_SERVICES_DIR="services"
+  run_deploy env HOME="$plutilok_home" PIERLESS_SERVICES_DIR="services"
 assert_exit 0 "$DEPLOY_EXIT" "plutil present: exits 0"
 if [ -d "$plutilok_out_dir" ]; then
   pass "plutil present: StandardOutPath dir created from the plutil stub's value"
@@ -1110,13 +1110,13 @@ plutilerr_calls="$(new_tmpdir)/launchctl-calls.log"
     echo "<string>${plutilerr_dir}/out.log</string>"
     echo '<key>StandardErrorPath</key>'
     echo "<string>${plutilerr_dir}/err.log</string>"
-  } > services/ai.gangplank.plutilerr.plist
-  git add services/ai.gangplank.plutilerr.plist
+  } > services/ai.pierless.plutilerr.plist
+  git add services/ai.pierless.plutilerr.plist
   git commit -q -m "add plutilerr plist"
   git push -q origin main
 )
 LAUNCHCTL_CALLS_LOG="$plutilerr_calls" PLUTILERR_SEEN="$plutilerr_seen" \
-  run_deploy env HOME="$plutilerr_home" GANGPLANK_SERVICES_DIR="services"
+  run_deploy env HOME="$plutilerr_home" PIERLESS_SERVICES_DIR="services"
 assert_exit 0 "$DEPLOY_EXIT" "plutil fails on stdout: exits 0"
 if [ -s "$plutilerr_seen" ]; then
   pass "plutil fails on stdout: the plutil stub was actually consulted"
@@ -1128,7 +1128,7 @@ if [ -d "$plutilerr_dir" ]; then
 else
   fail "plutil fails on stdout: grep fallback created the log dir (missing $plutilerr_dir)"
 fi
-if [ -d "$DEV/services/ai.gangplank.plutilerr.plist: Could not extract value, error: No value at that key path or invalid key path: StandardOutPath" ] \
+if [ -d "$DEV/services/ai.pierless.plutilerr.plist: Could not extract value, error: No value at that key path or invalid key path: StandardOutPath" ] \
    || ls -d "$DEV"/services/*"Could not extract"* >/dev/null 2>&1; then
   fail "plutil fails on stdout: no directory was created from the error text"
 else
@@ -1156,8 +1156,8 @@ noplutil_calls="$(new_tmpdir)/launchctl-calls.log"
     echo "<string>${noplutil_dir}/out.log</string>"
     echo '<key>StandardErrorPath</key>'
     echo "<string>${noplutil_dir}/err.log</string>"
-  } > services/ai.gangplank.noplutil.plist
-  git add services/ai.gangplank.noplutil.plist
+  } > services/ai.pierless.noplutil.plist
+  git add services/ai.pierless.noplutil.plist
   git commit -q -m "add noplutil plist"
   git push -q origin main
 )
@@ -1173,7 +1173,7 @@ if [ -d "$noplutil_dir" ]; then
 else
   pass "plutil absent: log dir does not exist before the deploy"
 fi
-LAUNCHCTL_CALLS_LOG="$noplutil_calls" run_deploy env HOME="$noplutil_home" GANGPLANK_SERVICES_DIR="services" \
+LAUNCHCTL_CALLS_LOG="$noplutil_calls" run_deploy env HOME="$noplutil_home" PIERLESS_SERVICES_DIR="services" \
   PATH="$noplutil_bindir"
 assert_exit 0 "$DEPLOY_EXIT" "plutil absent: exits 0"
 if [ -d "$noplutil_dir" ]; then
@@ -1202,14 +1202,14 @@ erronly_calls="$(new_tmpdir)/launchctl-calls.log"
 (
   cd "$DEV" || exit 1
   mkdir -p services
-  echo '<key>StandardErrorPath</key><string>ignored-by-the-stub</string>' > services/ai.gangplank.erronly.plist
-  git add services/ai.gangplank.erronly.plist
+  echo '<key>StandardErrorPath</key><string>ignored-by-the-stub</string>' > services/ai.pierless.erronly.plist
+  git add services/ai.pierless.erronly.plist
   git commit -q -m "add erronly plist"
   git push -q origin main
 )
 LAUNCHCTL_CALLS_LOG="$erronly_calls" \
   ERRONLY_ERR_VAL="${erronly_err_dir}/err.log" \
-  run_deploy env HOME="$erronly_home" GANGPLANK_SERVICES_DIR="services"
+  run_deploy env HOME="$erronly_home" PIERLESS_SERVICES_DIR="services"
 assert_exit 0 "$DEPLOY_EXIT" "StandardErrorPath only: exits 0"
 if [ -d "$erronly_err_dir" ]; then
   pass "StandardErrorPath only: its log dir is created"

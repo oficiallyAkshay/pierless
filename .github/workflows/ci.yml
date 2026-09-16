@@ -71,7 +71,7 @@ jobs:
     # (they still run in parallel) — this only serializes two main
     # pushes racing to publish the same badges branch.
     concurrency:
-      group: gangplank-coverage-badge-${{ github.ref }}
+      group: pierless-coverage-badge-${{ github.ref }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -83,7 +83,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p coverage
-          GANGPLANK_TRACE_FILE="$PWD/coverage/trace.log" bash tests/run.sh
+          PIERLESS_TRACE_FILE="$PWD/coverage/trace.log" bash tests/run.sh
       - name: Coverage gate
         run: |
           set -euo pipefail
@@ -137,14 +137,14 @@ jobs:
         run: |
           set -euo pipefail
           sed \
-            -e "s|@@LABEL@@|gangplank.runner|g" \
-            -e "s|@@RUNNER_DIR@@|/tmp/gangplank-runner|g" \
-            -e "s|@@HOOK@@|/tmp/gangplank-runner/hooks/job-started-gate.sh|g" \
+            -e "s|@@LABEL@@|pierless.runner|g" \
+            -e "s|@@RUNNER_DIR@@|/tmp/pierless-runner|g" \
+            -e "s|@@HOOK@@|/tmp/pierless-runner/hooks/job-started-gate.sh|g" \
             -e "s|@@ALLOWED_WORKFLOW_REF@@|owner/repo/.github/workflows/deploy.yml@refs/heads/main|g" \
             -e "s|@@ALLOWED_REPOSITORY@@|owner/repo|g" \
             -e "s|@@ALLOWED_REF@@|refs/heads/main|g" \
             -e "s|@@ALLOWED_JOB@@|deploy|g" \
-            -e "s|@@LOG@@|/tmp/gangplank-runner/runner.log|g" \
+            -e "s|@@LOG@@|/tmp/pierless-runner/runner.log|g" \
             -e "s|@@PATH@@|/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin|g" \
             -e "s|@@HOME@@|/tmp|g" \
             templates/launchd.plist.tmpl > /tmp/rendered.plist

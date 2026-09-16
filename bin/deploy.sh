@@ -1,42 +1,42 @@
 #!/bin/bash
-# bin/deploy.sh — fast-forward GANGPLANK_REPO from its origin remote, run the
+# bin/deploy.sh — fast-forward PIERLESS_REPO from its origin remote, run the
 # configured hooks, exit non-zero on anything that needs a human. Safe to run
-# by hand, from cron, or from the gangplank GitHub Action; idempotent, and
+# by hand, from cron, or from the pierless GitHub Action; idempotent, and
 # never rewrites history — refuse, never force.
 #
-# Env (all GANGPLANK_*; everything optional except REPO):
-#   GANGPLANK_REPO            required. Path to the git checkout to deploy.
-#   GANGPLANK_BRANCH          default main. Branch to track and fast-forward to.
-#   GANGPLANK_LOG             default $HOME/.gangplank/deploy.log
-#   GANGPLANK_LOCK_DIR        default $HOME/.gangplank/lock
-#   GANGPLANK_STATE_DIR       default $HOME/.gangplank. Holds last-hooked-sha,
+# Env (all PIERLESS_*; everything optional except REPO):
+#   PIERLESS_REPO            required. Path to the git checkout to deploy.
+#   PIERLESS_BRANCH          default main. Branch to track and fast-forward to.
+#   PIERLESS_LOG             default $HOME/.pierless/deploy.log
+#   PIERLESS_LOCK_DIR        default $HOME/.pierless/lock
+#   PIERLESS_STATE_DIR       default $HOME/.pierless. Holds last-hooked-sha,
 #                             the SHA whose hooks + prune last finished (see
 #                             "Hook idempotency" below).
-#   GANGPLANK_INSTALL         newline "glob=command" pairs; command runs in the
+#   PIERLESS_INSTALL         newline "glob=command" pairs; command runs in the
 #                             directory of each changed file whose basename
 #                             matches glob. Default: package.json and
 #                             package-lock.json => npm install --no-audit
 #                             --no-fund. Literal "none" disables.
-#   GANGPLANK_SERVICES_DIR    repo-relative folder of launchd plists; unset
+#   PIERLESS_SERVICES_DIR    repo-relative folder of launchd plists; unset
 #                             skips daemon load/unload entirely. Before a
 #                             plist is bootstrapped its StandardOutPath and
 #                             StandardErrorPath directories are created.
-#   GANGPLANK_KICK            space-separated launchd labels to kickstart -k
+#   PIERLESS_KICK            space-separated launchd labels to kickstart -k
 #                             after any pull that moved HEAD; unset skips.
-#   GANGPLANK_PRUNE_WORKTREES true (default) or false.
-#   GANGPLANK_SELF_LABEL      default gangplank.runner. A plist named for this
+#   PIERLESS_PRUNE_WORKTREES true (default) or false.
+#   PIERLESS_SELF_LABEL      default pierless.runner. A plist named for this
 #                             label is never loaded/unloaded from in here.
-#   GANGPLANK_ON_PARK         command run once, after a deploy that parked
+#   PIERLESS_ON_PARK         command run once, after a deploy that parked
 #                             edits and then actually fast-forwarded. Gets
-#                             GANGPLANK_PARKED_FILES (newline list),
-#                             GANGPLANK_STASH_NAME, and GANGPLANK_RUN_URL
+#                             PIERLESS_PARKED_FILES (newline list),
+#                             PIERLESS_STASH_NAME, and PIERLESS_RUN_URL
 #                             (copied from this script's own env if set,
 #                             else empty). Unset means no command.
-#   GANGPLANK_RUN_URL         optional; not used directly, only forwarded to
-#                             GANGPLANK_ON_PARK when it runs.
-#   GANGPLANK_TRIGGER         default manual. Logged only.
-#   GANGPLANK_STDOUT          "1" mirrors every log line to stdout too.
-#   GANGPLANK_DEBUG           "1" logs every decision, one line each.
+#   PIERLESS_RUN_URL         optional; not used directly, only forwarded to
+#                             PIERLESS_ON_PARK when it runs.
+#   PIERLESS_TRIGGER         default manual. Logged only.
+#   PIERLESS_STDOUT          "1" mirrors every log line to stdout too.
+#   PIERLESS_DEBUG           "1" logs every decision, one line each.
 #
 # GITHUB_OUTPUT (when set) gets: deployed=true|false, commits=N.
 #
@@ -55,7 +55,7 @@
 # deployed.
 #
 # Hook idempotency: the SHA whose hooks (install/services) and prune last
-# finished running is kept at GANGPLANK_STATE_DIR/last-hooked-sha, written
+# finished running is kept at PIERLESS_STATE_DIR/last-hooked-sha, written
 # only once they all finish. When that marker is present and does not
 # match current HEAD — even on a run that pulls nothing new — hooks run
 # again for <marker>..HEAD instead of being skipped, so a crash between a
@@ -67,42 +67,42 @@ set -uo pipefail
 ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
 
 # --- Configuration ---------------------------------------------------------
-REPO="${GANGPLANK_REPO:-}"
+REPO="${PIERLESS_REPO:-}"
 if [ -z "${REPO}" ]; then
-  echo "[$(ts)] GANGPLANK_REPO is not set — refusing to guess a checkout" >&2
+  echo "[$(ts)] PIERLESS_REPO is not set — refusing to guess a checkout" >&2
   exit 64
 fi
 if ! git -C "${REPO}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  echo "[$(ts)] GANGPLANK_REPO=${REPO} is not a git checkout" >&2
+  echo "[$(ts)] PIERLESS_REPO=${REPO} is not a git checkout" >&2
   exit 64
 fi
 
-LOG="${GANGPLANK_LOG:-${HOME}/.gangplank/deploy.log}"
+LOG="${PIERLESS_LOG:-${HOME}/.pierless/deploy.log}"
 mkdir -p "$(dirname "${LOG}")" 2>/dev/null || true
 
 log() {
   local line
   line="[$(ts)] $*"
   echo "${line}" >> "${LOG}"
-  [ "${GANGPLANK_STDOUT:-}" = "1" ] && echo "${line}"
+  [ "${PIERLESS_STDOUT:-}" = "1" ] && echo "${line}"
   return 0
 }
 
 debug() {
-  [ "${GANGPLANK_DEBUG:-}" = "1" ] && log "debug: $*"
+  [ "${PIERLESS_DEBUG:-}" = "1" ] && log "debug: $*"
   return 0
 }
 
-GANGPLANK_TRIGGER="${GANGPLANK_TRIGGER:-manual}"
-log "trigger=${GANGPLANK_TRIGGER} repo=${REPO}"
+PIERLESS_TRIGGER="${PIERLESS_TRIGGER:-manual}"
+log "trigger=${PIERLESS_TRIGGER} repo=${REPO}"
 
-LOCK_DIR="${GANGPLANK_LOCK_DIR:-${HOME}/.gangplank/lock}"
-GANGPLANK_SELF_LABEL="${GANGPLANK_SELF_LABEL:-gangplank.runner}"
-GANGPLANK_PRUNE_WORKTREES="${GANGPLANK_PRUNE_WORKTREES:-true}"
-BRANCH="${GANGPLANK_BRANCH:-main}"
+LOCK_DIR="${PIERLESS_LOCK_DIR:-${HOME}/.pierless/lock}"
+PIERLESS_SELF_LABEL="${PIERLESS_SELF_LABEL:-pierless.runner}"
+PIERLESS_PRUNE_WORKTREES="${PIERLESS_PRUNE_WORKTREES:-true}"
+BRANCH="${PIERLESS_BRANCH:-main}"
 
-GANGPLANK_STATE_DIR="${GANGPLANK_STATE_DIR:-${HOME}/.gangplank}"
-HOOK_MARKER_FILE="${GANGPLANK_STATE_DIR}/last-hooked-sha"
+PIERLESS_STATE_DIR="${PIERLESS_STATE_DIR:-${HOME}/.pierless}"
+HOOK_MARKER_FILE="${PIERLESS_STATE_DIR}/last-hooked-sha"
 LAST_HOOKED_SHA=""
 if [ -f "${HOOK_MARKER_FILE}" ]; then
   LAST_HOOKED_SHA="$(tr -d '[:space:]' < "${HOOK_MARKER_FILE}" 2>/dev/null || true)"
@@ -130,7 +130,7 @@ HOOK_FAILED=0
 # half-written marker that would be read back as a valid (wrong) SHA.
 write_marker() {
   local sha="$1"
-  mkdir -p "${GANGPLANK_STATE_DIR}" 2>/dev/null || true
+  mkdir -p "${PIERLESS_STATE_DIR}" 2>/dev/null || true
   if printf '%s\n' "${sha}" > "${HOOK_MARKER_FILE}.tmp" 2>/dev/null \
      && mv -f "${HOOK_MARKER_FILE}.tmp" "${HOOK_MARKER_FILE}" 2>/dev/null; then
     debug "hook marker: recorded ${sha}"
@@ -141,13 +141,13 @@ write_marker() {
 
 run_install_hooks() {
   local pre="$1" changed="$2"
-  local spec="${GANGPLANK_INSTALL:-}"
+  local spec="${PIERLESS_INSTALL:-}"
   if [ -z "${spec}" ]; then
     spec="package.json=npm install --no-audit --no-fund
 package-lock.json=npm install --no-audit --no-fund"
   fi
   if [ "${spec}" = "none" ]; then
-    debug "GANGPLANK_INSTALL=none, skipping install hooks"
+    debug "PIERLESS_INSTALL=none, skipping install hooks"
     return
   fi
 
@@ -230,9 +230,9 @@ ensure_plist_log_dirs() {
 
 run_service_hooks() {
   local pre="$1"
-  local dir="${GANGPLANK_SERVICES_DIR:-}"
+  local dir="${PIERLESS_SERVICES_DIR:-}"
   if [ -z "${dir}" ]; then
-    debug "GANGPLANK_SERVICES_DIR unset, skipping daemon load/unload"
+    debug "PIERLESS_SERVICES_DIR unset, skipping daemon load/unload"
     return
   fi
 
@@ -253,7 +253,7 @@ run_service_hooks() {
     [ -z "${plist_path}" ] && continue
     fname="$(basename "${plist_path}")"
     label="${fname%.plist}"
-    if [ "${label}" = "${GANGPLANK_SELF_LABEL}" ]; then
+    if [ "${label}" = "${PIERLESS_SELF_LABEL}" ]; then
       log "hook: ${fname} changed — the runner's own definition is never reloaded from inside a deploy; reload it by hand"
       continue
     fi
@@ -276,8 +276,8 @@ run_service_hooks() {
 }
 
 run_kick() {
-  local labels="${GANGPLANK_KICK:-}"
-  [ -z "${labels}" ] && { debug "GANGPLANK_KICK unset, skipping kickstart"; return; }
+  local labels="${PIERLESS_KICK:-}"
+  [ -z "${labels}" ] && { debug "PIERLESS_KICK unset, skipping kickstart"; return; }
   local uid label
   uid="$(id -u)"
   for label in ${labels}; do
@@ -290,8 +290,8 @@ run_kick() {
 }
 
 prune_worktrees() {
-  if [ "${GANGPLANK_PRUNE_WORKTREES}" != "true" ]; then
-    debug "GANGPLANK_PRUNE_WORKTREES=${GANGPLANK_PRUNE_WORKTREES}, skipping prune"
+  if [ "${PIERLESS_PRUNE_WORKTREES}" != "true" ]; then
+    debug "PIERLESS_PRUNE_WORKTREES=${PIERLESS_PRUNE_WORKTREES}, skipping prune"
     return
   fi
   if ! command -v gh >/dev/null 2>&1; then
@@ -483,7 +483,7 @@ STASH_MSG=""
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
   PARKED_FILES="$(git status --porcelain 2>/dev/null | cut -c4-)"
   PARKED_COUNT=$(printf '%s\n' "${PARKED_FILES}" | grep -c .)
-  STASH_MSG="gangplank park $(ts)"
+  STASH_MSG="pierless park $(ts)"
   if git stash push --include-untracked -m "${STASH_MSG}" >> "${LOG}" 2>&1; then
     debug "parked ${PARKED_COUNT} file(s) ahead of the fast-forward — stash=\"${STASH_MSG}\""
   else
@@ -516,13 +516,13 @@ if git merge --ff-only "origin/${BRANCH}" >> "${LOG}" 2>&1; then
   if [ "${PARKED_COUNT}" -gt 0 ]; then
     names_joined="$(printf '%s' "${PARKED_FILES}" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')"
     log "PARKED ${PARKED_COUNT} file(s): ${names_joined} — stash=\"${STASH_MSG}\" (left in the stash; this script never restores it)"
-    if [ -n "${GANGPLANK_ON_PARK:-}" ]; then
-      log "hook: running GANGPLANK_ON_PARK"
-      if ! ( export GANGPLANK_PARKED_FILES="${PARKED_FILES}"
-             export GANGPLANK_STASH_NAME="${STASH_MSG}"
-             export GANGPLANK_RUN_URL="${GANGPLANK_RUN_URL:-}"
-             eval "${GANGPLANK_ON_PARK}" ) >> "${LOG}" 2>&1; then
-        log "hook: GANGPLANK_ON_PARK command failed (non-fatal)"
+    if [ -n "${PIERLESS_ON_PARK:-}" ]; then
+      log "hook: running PIERLESS_ON_PARK"
+      if ! ( export PIERLESS_PARKED_FILES="${PARKED_FILES}"
+             export PIERLESS_STASH_NAME="${STASH_MSG}"
+             export PIERLESS_RUN_URL="${PIERLESS_RUN_URL:-}"
+             eval "${PIERLESS_ON_PARK}" ) >> "${LOG}" 2>&1; then
+        log "hook: PIERLESS_ON_PARK command failed (non-fatal)"
       fi
     fi
   fi

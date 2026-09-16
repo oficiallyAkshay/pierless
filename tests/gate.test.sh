@@ -14,12 +14,12 @@ REPO_ROOT="$(cd "$HERE/.." && pwd)"
 GATE_SCRIPT="$REPO_ROOT/bin/job-started-gate.sh"
 require_script "$GATE_SCRIPT"
 
-ALL_KEYS="GANGPLANK_ALLOWED_WORKFLOW_REF GANGPLANK_ALLOWED_REPOSITORY GITHUB_WORKFLOW_REF GITHUB_REPOSITORY GITHUB_REF GITHUB_EVENT_NAME GITHUB_JOB"
+ALL_KEYS="PIERLESS_ALLOWED_WORKFLOW_REF PIERLESS_ALLOWED_REPOSITORY GITHUB_WORKFLOW_REF GITHUB_REPOSITORY GITHUB_REF GITHUB_EVENT_NAME GITHUB_JOB"
 
 default_value() {
   case "$1" in
-    GANGPLANK_ALLOWED_WORKFLOW_REF) echo "owner/repo/.github/workflows/deploy.yml@refs/heads/main" ;;
-    GANGPLANK_ALLOWED_REPOSITORY) echo "owner/repo" ;;
+    PIERLESS_ALLOWED_WORKFLOW_REF) echo "owner/repo/.github/workflows/deploy.yml@refs/heads/main" ;;
+    PIERLESS_ALLOWED_REPOSITORY) echo "owner/repo" ;;
     GITHUB_WORKFLOW_REF) echo "owner/repo/.github/workflows/deploy.yml@refs/heads/main" ;;
     GITHUB_REPOSITORY) echo "owner/repo" ;;
     GITHUB_REF) echo "refs/heads/main" ;;
@@ -34,13 +34,13 @@ GATE_EXIT=""
 
 run_gate_env() {
   # args: any number of "KEY=VALUE" pairs, passed through env -i.
-  # BASH_ENV/GANGPLANK_TRACE_FILE are forwarded too (when set) so a
+  # BASH_ENV/PIERLESS_TRACE_FILE are forwarded too (when set) so a
   # traced run still traces the gate script through this clean-env
   # wrapper — they're plumbing for the test run, not gate inputs.
   local out err ec
   local trace_args=()
   [ -n "${BASH_ENV:-}" ] && trace_args+=("BASH_ENV=$BASH_ENV")
-  [ -n "${GANGPLANK_TRACE_FILE:-}" ] && trace_args+=("GANGPLANK_TRACE_FILE=$GANGPLANK_TRACE_FILE")
+  [ -n "${PIERLESS_TRACE_FILE:-}" ] && trace_args+=("PIERLESS_TRACE_FILE=$PIERLESS_TRACE_FILE")
   out="$(mktemp)"; err="$(mktemp)"
   if env -i PATH="$PATH" "${trace_args[@]}" "$@" bash "$GATE_SCRIPT" >"$out" 2>"$err"; then
     ec=0
@@ -81,14 +81,14 @@ assert_contains "$GATE_STDOUT" "allowed" "allow: stdout announces allowed"
 assert_empty "$GATE_STDERR" "allow: stderr empty on allow"
 
 # --- refuse on each wrong value ---
-run_with_overrides "" "GANGPLANK_ALLOWED_WORKFLOW_REF" "owner/repo/.github/workflows/other.yml@refs/heads/main"
-assert_exit 1 "$GATE_EXIT" "refuse: wrong GANGPLANK_ALLOWED_WORKFLOW_REF"
+run_with_overrides "" "PIERLESS_ALLOWED_WORKFLOW_REF" "owner/repo/.github/workflows/other.yml@refs/heads/main"
+assert_exit 1 "$GATE_EXIT" "refuse: wrong PIERLESS_ALLOWED_WORKFLOW_REF"
 assert_empty "$GATE_STDOUT" "refuse: stdout empty (wrong allowed workflow ref)"
 assert_contains "$GATE_STDERR" "refused —" "refuse: names the reason (wrong allowed workflow ref)"
 assert_contains "$GATE_STDERR" "workflow_ref does not match" "refuse: specific reason (wrong allowed workflow ref)"
 
-run_with_overrides "" "GANGPLANK_ALLOWED_REPOSITORY" "owner/other-repo"
-assert_exit 1 "$GATE_EXIT" "refuse: wrong GANGPLANK_ALLOWED_REPOSITORY"
+run_with_overrides "" "PIERLESS_ALLOWED_REPOSITORY" "owner/other-repo"
+assert_exit 1 "$GATE_EXIT" "refuse: wrong PIERLESS_ALLOWED_REPOSITORY"
 assert_empty "$GATE_STDOUT" "refuse: stdout empty (wrong allowed repository)"
 assert_contains "$GATE_STDERR" "repository does not match" "refuse: specific reason (wrong allowed repository)"
 
@@ -137,9 +137,9 @@ for k in $ALL_KEYS; do
   [ "$k" = "GITHUB_REF" ] && v="refs/heads/custom"
   custom_ref_args+=("$k=$v")
 done
-custom_ref_args+=("GANGPLANK_ALLOWED_REF=refs/heads/custom")
+custom_ref_args+=("PIERLESS_ALLOWED_REF=refs/heads/custom")
 run_gate_env "${custom_ref_args[@]}"
-assert_exit 0 "$GATE_EXIT" "override: GANGPLANK_ALLOWED_REF honored with matching GITHUB_REF"
+assert_exit 0 "$GATE_EXIT" "override: PIERLESS_ALLOWED_REF honored with matching GITHUB_REF"
 assert_contains "$GATE_STDOUT" "allowed" "override: stdout announces allowed (custom ref)"
 
 custom_job_args=()
@@ -148,9 +148,9 @@ for k in $ALL_KEYS; do
   [ "$k" = "GITHUB_JOB" ] && v="custom-job"
   custom_job_args+=("$k=$v")
 done
-custom_job_args+=("GANGPLANK_ALLOWED_JOB=custom-job")
+custom_job_args+=("PIERLESS_ALLOWED_JOB=custom-job")
 run_gate_env "${custom_job_args[@]}"
-assert_exit 0 "$GATE_EXIT" "override: GANGPLANK_ALLOWED_JOB honored with matching GITHUB_JOB"
+assert_exit 0 "$GATE_EXIT" "override: PIERLESS_ALLOWED_JOB honored with matching GITHUB_JOB"
 
 # without the override knob, the default (main / deploy) is still enforced
 nooverride_ref_args=()
@@ -160,6 +160,6 @@ for k in $ALL_KEYS; do
   nooverride_ref_args+=("$k=$v")
 done
 run_gate_env "${nooverride_ref_args[@]}"
-assert_exit 1 "$GATE_EXIT" "override: default ref still enforced when GANGPLANK_ALLOWED_REF is not set"
+assert_exit 1 "$GATE_EXIT" "override: default ref still enforced when PIERLESS_ALLOWED_REF is not set"
 
 test_summary_and_exit

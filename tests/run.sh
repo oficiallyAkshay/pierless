@@ -12,7 +12,7 @@ cd "$HERE/.."
 # has a #!/usr/bin/env bash shebang and runs as its own bash process)
 # sources this on start and appends its own trace lines to the shared
 # file — see scripts/ci/trace.sh.
-if [ -n "${GANGPLANK_TRACE_FILE:-}" ]; then
+if [ -n "${PIERLESS_TRACE_FILE:-}" ]; then
   export BASH_ENV="$PWD/scripts/ci/trace.sh"
 fi
 

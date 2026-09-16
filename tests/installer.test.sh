@@ -79,9 +79,9 @@ done
 exit 0
 '
 out="$(mktemp)"; err="$(mktemp)"
-GANGPLANK_TEST_RUNNER_VERSION="0.0.0-test" \
-GANGPLANK_TEST_RUNNER_SHA256="0000000000000000000000000000000000000000000000000000000000aa" \
-GANGPLANK_TEST_SKIP_PLATFORM_CHECK=1 \
+PIERLESS_TEST_RUNNER_VERSION="0.0.0-test" \
+PIERLESS_TEST_RUNNER_SHA256="0000000000000000000000000000000000000000000000000000000000aa" \
+PIERLESS_TEST_SKIP_PLATFORM_CHECK=1 \
 bash "$INSTALLER" --repo owner/repo --runner-dir "$runner_dir2" >"$out" 2>"$err"
 ec=$?
 mismatch_out="$(cat "$out")"
@@ -116,7 +116,7 @@ for a in "$@"; do
   if [ "$prev" = "-o" ]; then out_path="$a"; fi
   prev="$a"
 done
-[ -n "$out_path" ] && printf "%s" "${GANGPLANK_TEST_TARBALL_CONTENT:-FIXTURE_TARBALL_CONTENT_v1}" > "$out_path"
+[ -n "$out_path" ] && printf "%s" "${PIERLESS_TEST_TARBALL_CONTENT:-FIXTURE_TARBALL_CONTENT_v1}" > "$out_path"
 exit 0
 '
 }
@@ -180,7 +180,7 @@ case "$1" in
       # state = running is printed LAST, not first: the verify step in
       # install-runner.sh pipes this through grep -q, which exits the
       # instant it sees a match. If anything were printed AFTER that
-      # match, a slow writer (e.g. under GANGPLANK_TRACE_FILE tracing,
+      # match, a slow writer (e.g. under PIERLESS_TRACE_FILE tracing,
       # which adds a DEBUG-trap printf before every line) can still be
       # mid-write when grep closes its end of the pipe, earning a SIGPIPE
       # that pipefail then reports as a failure even though grep matched.
@@ -275,18 +275,18 @@ launchctl_calls_a="$(new_tmpdir)/launchctl-calls.log"; : > "$launchctl_calls_a"
 launchctl_state_a="$(new_tmpdir)/launchctl-state"
 run_install_real HOME="$home_a" CONFIG_CALLS_LOG="$config_calls_a" \
   LAUNCHCTL_CALLS_LOG="$launchctl_calls_a" LAUNCHCTL_STATE_FILE="$launchctl_state_a" \
-  GANGPLANK_TEST_RUNNER_VERSION="1.2.3-fixture" GANGPLANK_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
-  GANGPLANK_TEST_SKIP_PLATFORM_CHECK=1 \
+  PIERLESS_TEST_RUNNER_VERSION="1.2.3-fixture" PIERLESS_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
+  PIERLESS_TEST_SKIP_PLATFORM_CHECK=1 \
   -- --repo owner/repo --runner-dir "$runner_dir_a"
 assert_exit 0 "$INSTALL_EXIT" "fresh install: exits 0"
-assert_contains "$INSTALL_STDOUT" "verified: gangplank.runner running, hook sha256 matches repo" "fresh install: verify step passes"
+assert_contains "$INSTALL_STDOUT" "verified: pierless.runner running, hook sha256 matches repo" "fresh install: verify step passes"
 if [ -x "$runner_dir_a/hooks/job-started-gate.sh" ]; then
   pass "fresh install: hook installed and executable"
 else
   fail "fresh install: hook installed and executable"
 fi
 assert_contains "$(cat "$runner_dir_a/.env" 2>/dev/null || true)" "ACTIONS_RUNNER_HOOK_JOB_STARTED=" "fresh install: .env carries the hook path"
-if [ -f "$home_a/Library/LaunchAgents/gangplank.runner.plist" ]; then
+if [ -f "$home_a/Library/LaunchAgents/pierless.runner.plist" ]; then
   pass "fresh install: plist rendered into Library/LaunchAgents"
 else
   fail "fresh install: plist rendered into Library/LaunchAgents"
@@ -311,7 +311,7 @@ runner_dir_b="$home_b/runner"
 mkdir -p "$runner_dir_b" "$home_b/Library/LaunchAgents"
 printf 'old-version' > "$runner_dir_b/.runner-version"
 : > "$runner_dir_b/bin_marker_unused"
-plist_b="$home_b/Library/LaunchAgents/gangplank.runner.plist"
+plist_b="$home_b/Library/LaunchAgents/pierless.runner.plist"
 {
   echo '<?xml version="1.0"?>'
   echo '<plist><dict>'
@@ -322,12 +322,12 @@ plist_b="$home_b/Library/LaunchAgents/gangplank.runner.plist"
 launchctl_state_b="$(new_tmpdir)/launchctl-state"; touch "$launchctl_state_b"
 launchctl_calls_b="$(new_tmpdir)/launchctl-calls.log"; : > "$launchctl_calls_b"
 run_install_real HOME="$home_b" LAUNCHCTL_CALLS_LOG="$launchctl_calls_b" LAUNCHCTL_STATE_FILE="$launchctl_state_b" \
-  GANGPLANK_TEST_RUNNER_VERSION="2.0.0-fixture" GANGPLANK_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
-  GANGPLANK_TEST_SKIP_PLATFORM_CHECK=1 \
+  PIERLESS_TEST_RUNNER_VERSION="2.0.0-fixture" PIERLESS_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
+  PIERLESS_TEST_SKIP_PLATFORM_CHECK=1 \
   -- --repo owner/repo --runner-dir "$runner_dir_b"
 assert_contains "$INSTALL_STDOUT" "version change — booting out" "version change (matching dir): log names the bootout"
 launchctl_calls_b_content="$(cat "$launchctl_calls_b")"
-matching_bootout_count="$(printf '%s\n' "$launchctl_calls_b_content" | grep -c "bootout gui/$(id -u)/gangplank.runner")"
+matching_bootout_count="$(printf '%s\n' "$launchctl_calls_b_content" | grep -c "bootout gui/$(id -u)/pierless.runner")"
 # Section 1's version-change bootout clears the (stubbed) loaded state, so
 # section 4's own always-bootout-if-loaded check then finds it already
 # unloaded and skips its own call — exactly one bootout either way; what
@@ -341,7 +341,7 @@ home_c="$(new_tmpdir)"
 runner_dir_c="$home_c/runner"
 mkdir -p "$runner_dir_c" "$home_c/Library/LaunchAgents"
 printf 'old-version' > "$runner_dir_c/.runner-version"
-plist_c="$home_c/Library/LaunchAgents/gangplank.runner.plist"
+plist_c="$home_c/Library/LaunchAgents/pierless.runner.plist"
 {
   echo '<?xml version="1.0"?>'
   echo '<plist><dict>'
@@ -352,8 +352,8 @@ plist_c="$home_c/Library/LaunchAgents/gangplank.runner.plist"
 launchctl_state_c="$(new_tmpdir)/launchctl-state"; touch "$launchctl_state_c"
 launchctl_calls_c="$(new_tmpdir)/launchctl-calls.log"; : > "$launchctl_calls_c"
 run_install_real HOME="$home_c" LAUNCHCTL_CALLS_LOG="$launchctl_calls_c" LAUNCHCTL_STATE_FILE="$launchctl_state_c" \
-  GANGPLANK_TEST_RUNNER_VERSION="2.0.0-fixture" GANGPLANK_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
-  GANGPLANK_TEST_SKIP_PLATFORM_CHECK=1 \
+  PIERLESS_TEST_RUNNER_VERSION="2.0.0-fixture" PIERLESS_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
+  PIERLESS_TEST_SKIP_PLATFORM_CHECK=1 \
   -- --repo owner/repo --runner-dir "$runner_dir_c"
 assert_contains "$INSTALL_STDOUT" "skipping bootout: installed runner dir is" "version change (mismatched dir): log names the skip"
 launchctl_calls_c_content="$(cat "$launchctl_calls_c")"
@@ -362,7 +362,7 @@ launchctl_calls_c_content="$(cat "$launchctl_calls_c")"
 # 1 — so the mismatched case still shows ONE bootout call (from section
 # 4), while the matching case above shows TWO (section 1's version-change
 # bootout, plus section 4's). The count is what distinguishes them.
-mismatched_bootout_count="$(printf '%s\n' "$launchctl_calls_c_content" | grep -c "bootout gui/$(id -u)/gangplank.runner")"
+mismatched_bootout_count="$(printf '%s\n' "$launchctl_calls_c_content" | grep -c "bootout gui/$(id -u)/pierless.runner")"
 assert_eq "1" "$mismatched_bootout_count" "version change (mismatched dir): only section 4's own bootout ran, not an extra one from the version-change check"
 
 # --- idempotent second run: no re-download, no re-register ---
@@ -371,8 +371,8 @@ stub_bin gh 'echo "gh should not be called on an idempotent run" >&2; exit 9'
 stub_launchctl_stateful
 stub_plutil_fixture
 run_install_real HOME="$home_a" LAUNCHCTL_CALLS_LOG="$(new_tmpdir)/launchctl-calls.log" LAUNCHCTL_STATE_FILE="$launchctl_state_a" \
-  GANGPLANK_TEST_RUNNER_VERSION="1.2.3-fixture" GANGPLANK_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
-  GANGPLANK_TEST_SKIP_PLATFORM_CHECK=1 \
+  PIERLESS_TEST_RUNNER_VERSION="1.2.3-fixture" PIERLESS_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
+  PIERLESS_TEST_SKIP_PLATFORM_CHECK=1 \
   -- --repo owner/repo --runner-dir "$runner_dir_a"
 assert_exit 0 "$INSTALL_EXIT" "idempotent second run: exits 0"
 assert_contains "$INSTALL_STDOUT" "already extracted" "idempotent second run: skips the download"
@@ -393,8 +393,8 @@ stub_plutil_fixture
 home_d="$(new_tmpdir)"
 runner_dir_d="$home_d/runner"
 run_install_real HOME="$home_d" \
-  GANGPLANK_TEST_RUNNER_VERSION="3.0.0-fixture" GANGPLANK_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
-  GANGPLANK_TEST_SKIP_PLATFORM_CHECK=1 \
+  PIERLESS_TEST_RUNNER_VERSION="3.0.0-fixture" PIERLESS_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
+  PIERLESS_TEST_SKIP_PLATFORM_CHECK=1 \
   -- --repo owner/repo --runner-dir "$runner_dir_d"
 if [ "$INSTALL_EXIT" -eq 0 ]; then
   fail "unauthenticated gh: exits non-zero (got 0)"
@@ -402,13 +402,13 @@ else
   pass "unauthenticated gh: exits non-zero"
 fi
 assert_contains "$INSTALL_STDOUT" "an authenticated 'gh' is required to request a registration token" "unauthenticated gh: clear refusal line"
-if [ -f "$home_d/Library/LaunchAgents/gangplank.runner.plist" ]; then
+if [ -f "$home_d/Library/LaunchAgents/pierless.runner.plist" ]; then
   fail "unauthenticated gh: never reaches the plist render step (plist exists)"
 else
   pass "unauthenticated gh: never reaches the plist render step"
 fi
 
-# --- .env key replacement keeps unrelated lines, replaces gangplank keys ---
+# --- .env key replacement keeps unrelated lines, replaces pierless keys ---
 stub_launchctl_stateful
 stub_plutil_fixture
 home_e="$(new_tmpdir)"
@@ -418,17 +418,17 @@ mkdir -p "$runner_dir_e/bin"
 chmod +x "$runner_dir_e/bin/Runner.Listener"
 printf '4.0.0-fixture' > "$runner_dir_e/.runner-version"
 printf '{"gitHubUrl": "https://github.com/owner/repo"}' > "$runner_dir_e/.runner"
-printf 'MY_CUSTOM_VAR=hello\nGANGPLANK_ALLOWED_JOB=stale-job\n' > "$runner_dir_e/.env"
+printf 'MY_CUSTOM_VAR=hello\nPIERLESS_ALLOWED_JOB=stale-job\n' > "$runner_dir_e/.env"
 launchctl_state_e="$(new_tmpdir)/launchctl-state"
 run_install_real HOME="$home_e" LAUNCHCTL_STATE_FILE="$launchctl_state_e" \
-  GANGPLANK_TEST_RUNNER_VERSION="4.0.0-fixture" GANGPLANK_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
-  GANGPLANK_TEST_SKIP_PLATFORM_CHECK=1 \
+  PIERLESS_TEST_RUNNER_VERSION="4.0.0-fixture" PIERLESS_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
+  PIERLESS_TEST_SKIP_PLATFORM_CHECK=1 \
   -- --repo owner/repo --runner-dir "$runner_dir_e"
 assert_exit 0 "$INSTALL_EXIT" ".env replacement: exits 0 (no curl/gh stub needed — already extracted and registered)"
 env_e_content="$(cat "$runner_dir_e/.env" 2>/dev/null || true)"
 assert_contains "$env_e_content" "MY_CUSTOM_VAR=hello" ".env replacement: unrelated line preserved"
-assert_contains "$env_e_content" "GANGPLANK_ALLOWED_JOB=deploy" ".env replacement: gangplank-managed key updated to the new value"
-assert_not_contains "$env_e_content" "stale-job" ".env replacement: stale gangplank-managed value removed"
+assert_contains "$env_e_content" "PIERLESS_ALLOWED_JOB=deploy" ".env replacement: pierless-managed key updated to the new value"
+assert_not_contains "$env_e_content" "stale-job" ".env replacement: stale pierless-managed value removed"
 
 
 # --- dry-run: --name/--labels/--workflow/--branch/--job/--path are parsed ---
@@ -489,7 +489,7 @@ chmod +x "$already_dir/bin/Runner.Listener"
 printf '9.9.9-already' > "$already_dir/.runner-version"
 printf '{"gitHubUrl": "https://github.com/owner/repo"}' > "$already_dir/.runner"
 out="$(mktemp)"; err="$(mktemp)"
-GANGPLANK_TEST_RUNNER_VERSION="9.9.9-already" \
+PIERLESS_TEST_RUNNER_VERSION="9.9.9-already" \
   bash "$INSTALLER" --repo owner/repo --runner-dir "$already_dir" --dry-run >"$out" 2>"$err"
 already_ec=$?
 already_out="$(cat "$out")$(cat "$err")"
@@ -512,8 +512,8 @@ stub_plutil_fixture
 home_f="$(new_tmpdir)"
 runner_dir_f="$home_f/runner"
 run_install_real HOME="$home_f" \
-  GANGPLANK_TEST_RUNNER_VERSION="5.0.0-fixture" GANGPLANK_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
-  GANGPLANK_TEST_SKIP_PLATFORM_CHECK=1 \
+  PIERLESS_TEST_RUNNER_VERSION="5.0.0-fixture" PIERLESS_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
+  PIERLESS_TEST_SKIP_PLATFORM_CHECK=1 \
   -- --repo owner/repo --runner-dir "$runner_dir_f"
 if [ "$INSTALL_EXIT" -eq 0 ]; then
   fail "verify catches state never running: exits non-zero (got 0)"

@@ -1,4 +1,4 @@
-# action.yml — composite action wrapping bin/deploy.sh for the gangplank
+# action.yml — composite action wrapping bin/deploy.sh for the pierless
 # self-hosted runner. The one-workflow gate lives on the runner (see
 # bin/job-started-gate.sh), not here — this file only runs the deploy and
 # handles failure/recovery commands around it.
@@ -19,7 +19,7 @@
 # the expression-injection shape actionlint flags: a value from outside this
 # file (a log line, a branch name) can land inside the literal script GitHub
 # generates and run as shell rather than as data.
-name: gangplank
+name: pierless
 description: Fast-forward a self-hosted Mac's checkout from origin/main and run its deploy hooks.
 inputs:
   repo:
@@ -56,7 +56,7 @@ inputs:
   self_label:
     description: launchd label of the runner's own service definition; never reloaded from inside a deploy.
     required: false
-    default: "gangplank.runner"
+    default: "pierless.runner"
   on_failure:
     description: Command to run once when the deploy fails. Empty means no alerting.
     required: false
@@ -72,7 +72,7 @@ inputs:
   state_dir:
     description: Directory holding the last-failed marker and the hook-idempotency marker between runs.
     required: false
-    default: $HOME/.gangplank
+    default: $HOME/.pierless
 outputs:
   deployed:
     description: "true if this run fast-forwarded the checkout, false otherwise."
@@ -87,26 +87,26 @@ runs:
       id: deploy
       shell: bash
       env:
-        GANGPLANK_REPO: ${{ inputs.repo }}
-        GANGPLANK_BRANCH: ${{ inputs.branch }}
-        GANGPLANK_LOG: ${{ inputs.log }}
-        GANGPLANK_LOCK_DIR: ${{ inputs.lock_dir }}
-        GANGPLANK_STATE_DIR: ${{ inputs.state_dir }}
-        GANGPLANK_INSTALL: ${{ inputs.install }}
-        GANGPLANK_SERVICES_DIR: ${{ inputs.services_dir }}
-        GANGPLANK_KICK: ${{ inputs.kick }}
-        GANGPLANK_PRUNE_WORKTREES: ${{ inputs.prune_worktrees }}
-        GANGPLANK_SELF_LABEL: ${{ inputs.self_label }}
-        GANGPLANK_ON_PARK: ${{ inputs.on_park }}
-        GANGPLANK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        GANGPLANK_STDOUT: "1"
-        GANGPLANK_TRIGGER: github-actions
-        GANGPLANK_ACTION_PATH: ${{ github.action_path }}
+        PIERLESS_REPO: ${{ inputs.repo }}
+        PIERLESS_BRANCH: ${{ inputs.branch }}
+        PIERLESS_LOG: ${{ inputs.log }}
+        PIERLESS_LOCK_DIR: ${{ inputs.lock_dir }}
+        PIERLESS_STATE_DIR: ${{ inputs.state_dir }}
+        PIERLESS_INSTALL: ${{ inputs.install }}
+        PIERLESS_SERVICES_DIR: ${{ inputs.services_dir }}
+        PIERLESS_KICK: ${{ inputs.kick }}
+        PIERLESS_PRUNE_WORKTREES: ${{ inputs.prune_worktrees }}
+        PIERLESS_SELF_LABEL: ${{ inputs.self_label }}
+        PIERLESS_ON_PARK: ${{ inputs.on_park }}
+        PIERLESS_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        PIERLESS_STDOUT: "1"
+        PIERLESS_TRIGGER: github-actions
+        PIERLESS_ACTION_PATH: ${{ github.action_path }}
       run: |
         set +e
-        resolved_log="${GANGPLANK_LOG:-$HOME/.gangplank/deploy.log}"
+        resolved_log="${PIERLESS_LOG:-$HOME/.pierless/deploy.log}"
         echo "log_path=${resolved_log}" >> "${GITHUB_OUTPUT}"
-        "${GANGPLANK_ACTION_PATH}/bin/deploy.sh"
+        "${PIERLESS_ACTION_PATH}/bin/deploy.sh"
         code=$?
         echo "exit_code=${code}" >> "${GITHUB_OUTPUT}"
         reason="$(tail -n 1 "${resolved_log}" 2>/dev/null || true)"
@@ -116,37 +116,37 @@ runs:
       if: steps.deploy.outputs.exit_code != '0'
       shell: bash
       env:
-        GANGPLANK_STATE_DIR: ${{ inputs.state_dir }}
-        GANGPLANK_ON_FAILURE: ${{ inputs.on_failure }}
-        GANGPLANK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        GANGPLANK_SHA: ${{ github.sha }}
-        GANGPLANK_EXIT_CODE: ${{ steps.deploy.outputs.exit_code }}
-        GANGPLANK_REASON: ${{ steps.deploy.outputs.reason }}
+        PIERLESS_STATE_DIR: ${{ inputs.state_dir }}
+        PIERLESS_ON_FAILURE: ${{ inputs.on_failure }}
+        PIERLESS_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        PIERLESS_SHA: ${{ github.sha }}
+        PIERLESS_EXIT_CODE: ${{ steps.deploy.outputs.exit_code }}
+        PIERLESS_REASON: ${{ steps.deploy.outputs.reason }}
       run: |
         set -uo pipefail
-        mkdir -p "$GANGPLANK_STATE_DIR"
-        echo "$GANGPLANK_RUN_URL" > "$GANGPLANK_STATE_DIR/last-failed"
-        if [ -n "$GANGPLANK_ON_FAILURE" ]; then
-          eval "$GANGPLANK_ON_FAILURE"
+        mkdir -p "$PIERLESS_STATE_DIR"
+        echo "$PIERLESS_RUN_URL" > "$PIERLESS_STATE_DIR/last-failed"
+        if [ -n "$PIERLESS_ON_FAILURE" ]; then
+          eval "$PIERLESS_ON_FAILURE"
         fi
-        exit "$GANGPLANK_EXIT_CODE"
+        exit "$PIERLESS_EXIT_CODE"
 
     - name: Recovery command
       if: steps.deploy.outputs.exit_code == '0'
       shell: bash
       env:
-        GANGPLANK_STATE_DIR: ${{ inputs.state_dir }}
-        GANGPLANK_ON_RECOVERY: ${{ inputs.on_recovery }}
-        GANGPLANK_DEPLOYED: ${{ steps.deploy.outputs.deployed }}
-        GANGPLANK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        GANGPLANK_SHA: ${{ github.sha }}
-        GANGPLANK_EXIT_CODE: "0"
+        PIERLESS_STATE_DIR: ${{ inputs.state_dir }}
+        PIERLESS_ON_RECOVERY: ${{ inputs.on_recovery }}
+        PIERLESS_DEPLOYED: ${{ steps.deploy.outputs.deployed }}
+        PIERLESS_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        PIERLESS_SHA: ${{ github.sha }}
+        PIERLESS_EXIT_CODE: "0"
       run: |
         set -uo pipefail
-        marker="$GANGPLANK_STATE_DIR/last-failed"
-        if [ -f "$marker" ] && [ "$GANGPLANK_DEPLOYED" = "true" ]; then
-          if [ -n "$GANGPLANK_ON_RECOVERY" ]; then
-            eval "$GANGPLANK_ON_RECOVERY"
+        marker="$PIERLESS_STATE_DIR/last-failed"
+        if [ -f "$marker" ] && [ "$PIERLESS_DEPLOYED" = "true" ]; then
+          if [ -n "$PIERLESS_ON_RECOVERY" ]; then
+            eval "$PIERLESS_ON_RECOVERY"
           fi
           rm -f "$marker"
         fi

@@ -103,7 +103,7 @@ assert_contains "$UNINSTALL_STDOUT" "--repo is required" "missing --repo: clear 
 # --- loaded: bootout is called and logged ---
 stub_launchctl
 home1="$(new_tmpdir)"
-runner_dir1="$home1/.gangplank/runner"
+runner_dir1="$home1/.pierless/runner"
 state_file1="$(new_tmpdir)/state"
 calls_log1="$(new_tmpdir)/launchctl-calls.log"
 touch "$state_file1"
@@ -116,7 +116,7 @@ assert_contains "$calls1" "bootout" "loaded: launchctl bootout was called"
 
 # --- not loaded: says so, bootout never called ---
 home2="$(new_tmpdir)"
-runner_dir2="$home2/.gangplank/runner"
+runner_dir2="$home2/.pierless/runner"
 state_file2="$(new_tmpdir)/state-never-created"
 calls_log2="$(new_tmpdir)/launchctl-calls.log"
 : > "$calls_log2"
@@ -128,14 +128,14 @@ assert_empty "$calls2" "not loaded: launchctl bootout never called"
 
 # --- registered: removal token requested, config.sh remove invoked, plist deleted ---
 home3="$(new_tmpdir)"
-runner_dir3="$home3/.gangplank/runner"
+runner_dir3="$home3/.pierless/runner"
 mkdir -p "$runner_dir3"
 : > "$runner_dir3/.runner"
 new_fake_config_sh "$runner_dir3"
 config_calls3="$(new_tmpdir)/config-calls.log"
 : > "$config_calls3"
 mkdir -p "$home3/Library/LaunchAgents"
-plist3="$home3/Library/LaunchAgents/gangplank.runner.plist"
+plist3="$home3/Library/LaunchAgents/pierless.runner.plist"
 echo "<plist fixture/>" > "$plist3"
 stub_gh_removal_ok
 run_uninstall HOME="$home3" CONFIG_CALLS_LOG="$config_calls3" \
@@ -155,11 +155,11 @@ assert_contains "$UNINSTALL_STDOUT" "deleted $plist3" "registered: logs the plis
 
 # --- unauthenticated gh: refuses before touching the plist ---
 home4="$(new_tmpdir)"
-runner_dir4="$home4/.gangplank/runner"
+runner_dir4="$home4/.pierless/runner"
 mkdir -p "$runner_dir4"
 : > "$runner_dir4/.runner"
 mkdir -p "$home4/Library/LaunchAgents"
-plist4="$home4/Library/LaunchAgents/gangplank.runner.plist"
+plist4="$home4/Library/LaunchAgents/pierless.runner.plist"
 echo "<plist fixture/>" > "$plist4"
 stub_bin gh '
 case "$1" in
@@ -182,7 +182,7 @@ fi
 
 # --- .runner not found: nothing to remove, no gh call needed ---
 home5="$(new_tmpdir)"
-runner_dir5="$home5/.gangplank/runner"
+runner_dir5="$home5/.pierless/runner"
 mkdir -p "$runner_dir5"
 stub_bin gh 'echo "gh should not be called" >&2; exit 9'
 run_uninstall HOME="$home5" -- --repo owner/repo --runner-dir "$runner_dir5"
@@ -192,7 +192,7 @@ assert_not_contains "$UNINSTALL_STDOUT" "gh should not be called" "no .runner: g
 
 # --- --purge deletes the runner dir; without it, the dir is kept ---
 home6="$(new_tmpdir)"
-runner_dir6="$home6/.gangplank/runner"
+runner_dir6="$home6/.pierless/runner"
 mkdir -p "$runner_dir6"
 echo "state" > "$runner_dir6/some-state-file"
 run_uninstall HOME="$home6" -- --repo owner/repo --runner-dir "$runner_dir6"
@@ -205,7 +205,7 @@ fi
 assert_contains "$UNINSTALL_STDOUT" "left $runner_dir6 in place" "no --purge: log names the kept dir"
 
 home7="$(new_tmpdir)"
-runner_dir7="$home7/.gangplank/runner"
+runner_dir7="$home7/.pierless/runner"
 mkdir -p "$runner_dir7"
 echo "state" > "$runner_dir7/some-state-file"
 run_uninstall HOME="$home7" -- --repo owner/repo --runner-dir "$runner_dir7" --purge

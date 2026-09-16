@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/cli.test.sh — bin/gangplank: --help and an unknown verb.
+# tests/cli.test.sh — bin/pierless: --help and an unknown verb.
 
 set -o pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,7 +7,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HERE/lib.sh"
 
 REPO_ROOT="$(cd "$HERE/.." && pwd)"
-CLI="$REPO_ROOT/bin/gangplank"
+CLI="$REPO_ROOT/bin/pierless"
 require_script "$CLI"
 
 out="$(mktemp)"; err="$(mktemp)"
@@ -36,7 +36,7 @@ rm -f "$out" "$err"
 assert_exit 64 "$ec" "no verb given: exits 64"
 
 # --- each verb dispatches to the right sibling script ---
-# gangplank always execs the SIBLING scripts at its own fixed SCRIPT_DIR
+# pierless always execs the SIBLING scripts at its own fixed SCRIPT_DIR
 # (not stubs on PATH), so dispatch is proven by each sibling's own
 # distinct usage banner, not by a swapped-out fake.
 
@@ -64,7 +64,7 @@ rm -f "$out" "$err"
 assert_exit 0 "$uninstall_ec" "uninstall verb: --help exits 0"
 assert_contains "$uninstall_out" "usage: uninstall-runner.sh" "uninstall verb: reaches uninstall-runner.sh"
 
-# --- dry-run verb: install-runner.sh --dry-run, GANGPLANK_REPO unset ---
+# --- dry-run verb: install-runner.sh --dry-run, PIERLESS_REPO unset ---
 # (no gh stub needed here: install-runner.sh's dry-run path still requests
 # a real registration token, so this case gives it an authenticated gh.)
 stub_bin gh '
@@ -77,15 +77,15 @@ esac
 dryrun_home="$(new_tmpdir)"
 dryrun_runner_dir="$dryrun_home/runner"
 out="$(mktemp)"; err="$(mktemp)"
-( env -u GANGPLANK_REPO bash "$CLI" dry-run --repo owner/repo --runner-dir "$dryrun_runner_dir" ) >"$out" 2>"$err"
+( env -u PIERLESS_REPO bash "$CLI" dry-run --repo owner/repo --runner-dir "$dryrun_runner_dir" ) >"$out" 2>"$err"
 dryrun_ec=$?
 dryrun_out="$(cat "$out")$(cat "$err")"
 rm -f "$out" "$err"
-assert_exit 0 "$dryrun_ec" "dry-run verb (no GANGPLANK_REPO): exits 0"
-assert_contains "$dryrun_out" "dry-run" "dry-run verb (no GANGPLANK_REPO): reaches install-runner.sh's dry-run plan"
-assert_not_contains "$dryrun_out" "running deploy.sh --dry-run" "dry-run verb (no GANGPLANK_REPO): deploy.sh is not invoked"
+assert_exit 0 "$dryrun_ec" "dry-run verb (no PIERLESS_REPO): exits 0"
+assert_contains "$dryrun_out" "dry-run" "dry-run verb (no PIERLESS_REPO): reaches install-runner.sh's dry-run plan"
+assert_not_contains "$dryrun_out" "running deploy.sh --dry-run" "dry-run verb (no PIERLESS_REPO): deploy.sh is not invoked"
 
-# --- dry-run verb: GANGPLANK_REPO set also reaches deploy.sh ---
+# --- dry-run verb: PIERLESS_REPO set also reaches deploy.sh ---
 dryrun_repo="$(new_tmpdir)/repo"
 mkdir -p "$dryrun_repo"
 git -C "$dryrun_repo" init -q
@@ -93,9 +93,9 @@ git -C "$dryrun_repo" config user.email "t@example.com"
 git -C "$dryrun_repo" config user.name "t"
 dryrun_home2="$(new_tmpdir)"
 out="$(mktemp)"; err="$(mktemp)"
-( GANGPLANK_REPO="$dryrun_repo" GANGPLANK_LOG="$dryrun_home2/deploy.log" GANGPLANK_LOCK_DIR="$dryrun_home2/lock"   bash "$CLI" dry-run --repo owner/repo --runner-dir "$dryrun_home2/runner" ) >"$out" 2>"$err"
+( PIERLESS_REPO="$dryrun_repo" PIERLESS_LOG="$dryrun_home2/deploy.log" PIERLESS_LOCK_DIR="$dryrun_home2/lock"   bash "$CLI" dry-run --repo owner/repo --runner-dir "$dryrun_home2/runner" ) >"$out" 2>"$err"
 dryrun2_out="$(cat "$out")$(cat "$err")"
 rm -f "$out" "$err"
-assert_contains "$dryrun2_out" "running deploy.sh --dry-run with GANGPLANK_DRY_RUN=1" "dry-run verb (GANGPLANK_REPO set): also runs deploy.sh"
+assert_contains "$dryrun2_out" "running deploy.sh --dry-run with PIERLESS_DRY_RUN=1" "dry-run verb (PIERLESS_REPO set): also runs deploy.sh"
 
 test_summary_and_exit

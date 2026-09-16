@@ -9,9 +9,9 @@
 
 set -euo pipefail
 
-LABEL="gangplank.runner"
+LABEL="pierless.runner"
 REPO_SLUG=""
-RUNNER_DIR="${HOME:-$PWD}/.gangplank/runner"
+RUNNER_DIR="${HOME:-$PWD}/.pierless/runner"
 
 usage() {
   cat <<'USAGE'
@@ -51,7 +51,7 @@ else
 fi
 
 echo "== deploy log =="
-LOG_PATH="${GANGPLANK_LOG:-${RUNNER_DIR}/runner.log}"
+LOG_PATH="${PIERLESS_LOG:-${RUNNER_DIR}/runner.log}"
 if [ -f "${LOG_PATH}" ]; then
   tail -n 3 "${LOG_PATH}"
 else
@@ -64,7 +64,7 @@ if [ -d "${DIAG_DIR}" ]; then
   NEWEST_DIAG="$(find "${DIAG_DIR}" -maxdepth 1 -name 'Runner_*.log' -type f -print0 2>/dev/null \
     | xargs -0 ls -t 2>/dev/null | head -n 1 || true)"
   if [ -n "${NEWEST_DIAG}" ]; then
-    grep 'gangplank gate: refused' "${NEWEST_DIAG}" | tail -n 1 || echo "no refusal lines in ${NEWEST_DIAG}"
+    grep 'pierless gate: refused' "${NEWEST_DIAG}" | tail -n 1 || echo "no refusal lines in ${NEWEST_DIAG}"
   else
     echo "no Runner_*.log files in ${DIAG_DIR}"
   fi

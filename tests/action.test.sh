@@ -25,8 +25,8 @@ for input in repo on_failure on_recovery on_park state_dir; do
   fi
 done
 
-assert_contains "$content" "GANGPLANK_ON_PARK: \${{ inputs.on_park }}" "action: on_park input mapped to GANGPLANK_ON_PARK env"
-assert_contains "$content" "GANGPLANK_STATE_DIR: \${{ inputs.state_dir }}" "action: state_dir input mapped to GANGPLANK_STATE_DIR env on the deploy step"
+assert_contains "$content" "PIERLESS_ON_PARK: \${{ inputs.on_park }}" "action: on_park input mapped to PIERLESS_ON_PARK env"
+assert_contains "$content" "PIERLESS_STATE_DIR: \${{ inputs.state_dir }}" "action: state_dir input mapped to PIERLESS_STATE_DIR env on the deploy step"
 
 # No third-party `uses:` at all — this action never checks anything out
 # and calls no other action.

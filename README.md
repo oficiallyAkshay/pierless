@@ -1,16 +1,16 @@
-# gangplank
+# pierless
 
 Merge to main. Your Mac is running it seconds later. No open port, no tunnel, no secret to rotate.
 
-![inbound ports](https://img.shields.io/badge/inbound%20ports-0-brightgreen) ![secrets to rotate](https://img.shields.io/badge/secrets%20to%20rotate-0-blueviolet) ![runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-ff69b4) ![platform](https://img.shields.io/badge/platform-macOS%20%C2%B7%20launchd-blue) ![shellcheck](https://img.shields.io/badge/shellcheck-clean-brightgreen) ![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FoficiallyAkshay%2Fgangplank%2Fbadges%2Fbadges%2Fcoverage.json) ![license](https://img.shields.io/badge/license-MIT-orange)
+![inbound ports](https://img.shields.io/badge/inbound%20ports-0-brightgreen) ![secrets to rotate](https://img.shields.io/badge/secrets%20to%20rotate-0-blueviolet) ![runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-ff69b4) ![platform](https://img.shields.io/badge/platform-macOS%20%C2%B7%20launchd-blue) ![shellcheck](https://img.shields.io/badge/shellcheck-clean-brightgreen) ![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FoficiallyAkshay%2Fpierless%2Fbadges%2Fbadges%2Fcoverage.json) ![license](https://img.shields.io/badge/license-MIT-orange)
 
-gangplank turns a GitHub self-hosted runner into a deploy-only agent for one Mac: the Mac that runs your agents, daemons, loops, and dashboards.
+pierless turns a GitHub self-hosted runner into a deploy-only agent for one Mac: the Mac that runs your agents, daemons, loops, and dashboards.
 
 Two things stay true at once. Merged PRs land on the box by themselves. Edits you make by hand on the box are never overwritten and never block a deploy.
 
 ## What it adds
 
-The runner and git move the bytes. gangplank adds the rules:
+The runner and git move the bytes. pierless adds the rules:
 
 - **One door.** The gate refuses every job except one workflow on one branch. Fails closed. No network calls.
 - **Never force.** Diverged, fetch failed, cannot fast-forward: the run goes red and says why. No reset, ever.
@@ -18,7 +18,7 @@ The runner and git move the bytes. gangplank adds the rules:
 - **Self-heal.** A box stranded on a squash-merged branch is put back on main and deployed.
 - **Install only what moved.** Dependencies reinstall only where a manifest changed.
 - **Daemons ship with their code.** A new or changed launchd plist loads on the deploy that carries it. Rename it to `.disabled` and it unloads.
-- **Kick what launchd drops.** Coalesced file events lose a restart; gangplank kicks the daemon you name.
+- **Kick what launchd drops.** Coalesced file events lose a restart; pierless kicks the daemon you name.
 - **Prune finished worktrees.** Only when the PR merged, the tree is clean, and no session holds it.
 - **Alert on failure only.** Your command runs once on a red deploy, your recovery command once on the next green. Silence otherwise.
 
@@ -27,8 +27,8 @@ The runner and git move the bytes. gangplank adds the rules:
 On the Mac, once:
 
 ```bash
-git clone https://github.com/oficiallyAkshay/gangplank ~/.gangplank/src
-~/.gangplank/src/bin/gangplank install --repo you/your-repo
+git clone https://github.com/oficiallyAkshay/pierless ~/.pierless/src
+~/.pierless/src/bin/pierless install --repo you/your-repo
 ```
 
 Registers the runner, runs it under launchd, and installs the gate outside every checkout so no branch can edit it. The other verbs: `status`, `dry-run`, `uninstall`.
@@ -42,9 +42,9 @@ on:
 concurrency: { group: deploy, cancel-in-progress: false }
 jobs:
   deploy:
-    runs-on: [self-hosted, macOS, gangplank]
+    runs-on: [self-hosted, macOS, pierless]
     steps:
-      - uses: oficiallyAkshay/gangplank@v0
+      - uses: oficiallyAkshay/pierless@v0
         with:
           repo: /Users/you/your-checkout
 ```

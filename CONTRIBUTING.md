@@ -1,6 +1,6 @@
 # Contributing
 
-gangplank is a few hundred lines of shell and one workflow file. Keeping it that small is the point. The bar for a change: it makes a deploy safer, or the tool simpler.
+pierless is a few hundred lines of shell and one workflow file. Keeping it that small is the point. The bar for a change: it makes a deploy safer, or the tool simpler.
 
 ## The runbook for a change
 
@@ -45,7 +45,7 @@ The macOS job is the only one that touches launchd, and only in dry-run. Nothing
 
 ## Reporting a problem
 
-Open an issue with the failing step's output from the GitHub run and the output of `gangplank status`. Never paste anything from your `.env`.
+Open an issue with the failing step's output from the GitHub run and the output of `pierless status`. Never paste anything from your `.env`.
 
 ## License
 

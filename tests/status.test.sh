@@ -19,7 +19,7 @@ STATUS_STDOUT=""
 STATUS_EXIT=""
 
 run_status() {
-  # args: any GANGPLANK_LOADED=1 / other env assignments, then the flags
+  # args: any PIERLESS_LOADED=1 / other env assignments, then the flags
   # to pass to status.sh after a literal "--".
   local envs=() flags=() seen_dashdash=0
   local a
@@ -70,21 +70,21 @@ assert_contains "$STATUS_STDOUT" "pid = 4242" "launchd loaded: shows pid"
 
 # --- launchd: not loaded says so ---
 run_status LAUNCHCTL_LOADED_FILE="/no/such/flag-$$" -- --runner-dir "$(new_tmpdir)/runner"
-assert_contains "$STATUS_STDOUT" "gangplank.runner is not loaded" "launchd not loaded: names the label"
+assert_contains "$STATUS_STDOUT" "pierless.runner is not loaded" "launchd not loaded: names the label"
 
 # --- GitHub: --repo given, gh authenticated, prints runner status ---
 stub_bin gh '
 case "$1" in
   auth) exit 0 ;;
   api)
-    echo "gangplank-mac: online (busy=false)"
+    echo "pierless-mac: online (busy=false)"
     exit 0
     ;;
   *) exit 1 ;;
 esac
 '
 run_status -- --repo owner/repo --runner-dir "$(new_tmpdir)/runner"
-assert_contains "$STATUS_STDOUT" "gangplank-mac: online (busy=false)" "GitHub --repo given: prints runner status from gh"
+assert_contains "$STATUS_STDOUT" "pierless-mac: online (busy=false)" "GitHub --repo given: prints runner status from gh"
 
 # --- GitHub: gh not authenticated ---
 stub_bin gh '
@@ -131,10 +131,10 @@ esac
 run_status -- --runner-dir "$runner_dir_with_reg"
 assert_contains "$STATUS_STDOUT" "picked-up-from-dot-runner: online (busy=false)" "GitHub repo read from .runner: uses the parsed slug"
 
-# --- deploy log: tail of GANGPLANK_LOG ---
+# --- deploy log: tail of PIERLESS_LOG ---
 log_file="$(new_tmpdir)/runner.log"
 printf 'line one\nline two\nline three\nline four\n' > "$log_file"
-run_status GANGPLANK_LOG="$log_file" -- --runner-dir "$(new_tmpdir)/runner"
+run_status PIERLESS_LOG="$log_file" -- --runner-dir "$(new_tmpdir)/runner"
 assert_contains "$STATUS_STDOUT" "line two" "deploy log: tail includes line two"
 assert_contains "$STATUS_STDOUT" "line three" "deploy log: tail includes line three"
 assert_contains "$STATUS_STDOUT" "line four" "deploy log: tail includes line four"
@@ -147,9 +147,9 @@ assert_contains "$STATUS_STDOUT" "no log at" "deploy log missing: says so"
 # --- last refusal: newest Runner_*.log's last refusal line ---
 diag_runner_dir="$(new_tmpdir)/runner"
 mkdir -p "$diag_runner_dir/_diag"
-printf 'some noise\ngangplank gate: refused — old reason (workflow_ref=x)\n' > "$diag_runner_dir/_diag/Runner_20250101-000000-utc.log"
+printf 'some noise\npierless gate: refused — old reason (workflow_ref=x)\n' > "$diag_runner_dir/_diag/Runner_20250101-000000-utc.log"
 sleep 1
-printf 'gangplank gate: allowed x\ngangplank gate: refused — newest reason (workflow_ref=y)\n' > "$diag_runner_dir/_diag/Runner_20250102-000000-utc.log"
+printf 'pierless gate: allowed x\npierless gate: refused — newest reason (workflow_ref=y)\n' > "$diag_runner_dir/_diag/Runner_20250102-000000-utc.log"
 run_status -- --runner-dir "$diag_runner_dir"
 assert_contains "$STATUS_STDOUT" "newest reason" "last refusal: reads the newest Runner_*.log"
 assert_not_contains "$STATUS_STDOUT" "old reason" "last refusal: does not read the older Runner_*.log"
@@ -157,7 +157,7 @@ assert_not_contains "$STATUS_STDOUT" "old reason" "last refusal: does not read t
 # --- last refusal: diag dir exists, no refusal lines in the newest log ---
 clean_diag_dir="$(new_tmpdir)/runner"
 mkdir -p "$clean_diag_dir/_diag"
-printf 'gangplank gate: allowed x\n' > "$clean_diag_dir/_diag/Runner_20250101-000000-utc.log"
+printf 'pierless gate: allowed x\n' > "$clean_diag_dir/_diag/Runner_20250101-000000-utc.log"
 run_status -- --runner-dir "$clean_diag_dir"
 assert_contains "$STATUS_STDOUT" "no refusal lines in" "last refusal: no matching lines says so"
 

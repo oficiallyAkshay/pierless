@@ -3,4 +3,4 @@
 # not flag it as an unknown GitHub-hosted runner label.
 self-hosted-runner:
   labels:
-    - gangplank
+    - pierless

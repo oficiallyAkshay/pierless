@@ -111,7 +111,7 @@ cp "$REPO_ROOT/bin/job-started-gate.sh" "$e2e_dir/bin/"
 cp "$REPO_ROOT/tests/lib.sh" "$REPO_ROOT/tests/gate.test.sh" "$REPO_ROOT/tests/run.sh" "$e2e_dir/tests/"
 cp "$REPO_ROOT/scripts/ci/trace.sh" "$SCRIPT" "$e2e_dir/scripts/ci/"
 
-e2e_run_out="$(cd "$e2e_dir" && GANGPLANK_TRACE_FILE="$e2e_dir/coverage/trace.log" bash tests/run.sh 2>&1)"
+e2e_run_out="$(cd "$e2e_dir" && PIERLESS_TRACE_FILE="$e2e_dir/coverage/trace.log" bash tests/run.sh 2>&1)"
 e2e_run_ec=$?
 assert_exit 0 "$e2e_run_ec" "end-to-end: gate.test.sh still passes while traced"
 

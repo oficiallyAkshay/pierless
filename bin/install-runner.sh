@@ -32,12 +32,12 @@
 # runner dir it pointed at, so a test run against a temp --runner-dir could
 # still stop a real, unrelated runner on the same Mac.
 #
-# GANGPLANK_TEST_RUNNER_VERSION / GANGPLANK_TEST_RUNNER_SHA256 are TEST-ONLY
+# PIERLESS_TEST_RUNNER_VERSION / PIERLESS_TEST_RUNNER_SHA256 are TEST-ONLY
 # overrides for RUNNER_VERSION / RUNNER_SHA256 below, so a test can exercise
 # the download/verify/extract flow against a small fixture instead of the
 # real multi-hundred-megabyte tarball. Never set them outside a test.
 #
-# GANGPLANK_TEST_SKIP_PLATFORM_CHECK=1 is a TEST-ONLY override that skips
+# PIERLESS_TEST_SKIP_PLATFORM_CHECK=1 is a TEST-ONLY override that skips
 # the "refuse on non-arm64" check below entirely, so a test running on a
 # non-arm64 host (e.g. Linux CI) can reach the download/verify step to
 # exercise the sha256-mismatch refusal. Never set it outside a test.
@@ -56,21 +56,21 @@ set -euo pipefail
 
 # Pinned actions/runner release. Bump both together; verify against
 # https://github.com/actions/runner/releases (osx-arm64 sha256 lives in
-# that release's notes). GANGPLANK_TEST_RUNNER_VERSION /
-# GANGPLANK_TEST_RUNNER_SHA256 are test-only overrides — see header.
-RUNNER_VERSION="${GANGPLANK_TEST_RUNNER_VERSION:-2.337.0}"
-RUNNER_SHA256="${GANGPLANK_TEST_RUNNER_SHA256:-5a2cd92908a93d7276a194e1de6008099f3e7946f3f8e14aa7a1a7b4a31fdec2}"
+# that release's notes). PIERLESS_TEST_RUNNER_VERSION /
+# PIERLESS_TEST_RUNNER_SHA256 are test-only overrides — see header.
+RUNNER_VERSION="${PIERLESS_TEST_RUNNER_VERSION:-2.337.0}"
+RUNNER_SHA256="${PIERLESS_TEST_RUNNER_SHA256:-5a2cd92908a93d7276a194e1de6008099f3e7946f3f8e14aa7a1a7b4a31fdec2}"
 
 DRY_RUN=0
 REPO_SLUG=""
-RUNNER_DIR="${HOME:-$PWD}/.gangplank/runner"
-RUNNER_NAME="gangplank-$(hostname -s 2>/dev/null || echo mac)"
-LABELS="gangplank"
+RUNNER_DIR="${HOME:-$PWD}/.pierless/runner"
+RUNNER_NAME="pierless-$(hostname -s 2>/dev/null || echo mac)"
+LABELS="pierless"
 WORKFLOW="deploy.yml"
 BRANCH="main"
 JOB="deploy"
 BAKED_PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-LABEL="gangplank.runner"
+LABEL="pierless.runner"
 INSTALLED_PLIST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -119,7 +119,7 @@ ALLOWED_WORKFLOW_REF="${REPO_SLUG}/.github/workflows/${WORKFLOW}@refs/heads/${BR
 ALLOWED_REF="refs/heads/${BRANCH}"
 
 PLATFORM_REFUSAL_REASON=""
-if [ "${GANGPLANK_TEST_SKIP_PLATFORM_CHECK:-0}" != "1" ]; then
+if [ "${PIERLESS_TEST_SKIP_PLATFORM_CHECK:-0}" != "1" ]; then
   case "$(uname -m)" in
     arm64) ;;
     *)
@@ -223,21 +223,21 @@ HOOK_DEST="${RUNNER_DIR}/hooks/job-started-gate.sh"
 ENV_FILE="${RUNNER_DIR}/.env"
 
 if [ "${DRY_RUN}" -eq 1 ]; then
-  plan "would install hook at ${HOOK_DEST} and write GANGPLANK_ALLOWED_* + ACTIONS_RUNNER_HOOK_JOB_STARTED into ${ENV_FILE}"
+  plan "would install hook at ${HOOK_DEST} and write PIERLESS_ALLOWED_* + ACTIONS_RUNNER_HOOK_JOB_STARTED into ${ENV_FILE}"
 else
   mkdir -p "${RUNNER_DIR}/hooks"
   cp "${GATE_SCRIPT}" "${HOOK_DEST}"
   chmod 0755 "${HOOK_DEST}"
   TMP_ENV="$(mktemp)"
   if [ -f "${ENV_FILE}" ]; then
-    grep -vE '^(ACTIONS_RUNNER_HOOK_JOB_STARTED|GANGPLANK_ALLOWED_WORKFLOW_REF|GANGPLANK_ALLOWED_REPOSITORY|GANGPLANK_ALLOWED_REF|GANGPLANK_ALLOWED_JOB)=' "${ENV_FILE}" > "${TMP_ENV}" || true
+    grep -vE '^(ACTIONS_RUNNER_HOOK_JOB_STARTED|PIERLESS_ALLOWED_WORKFLOW_REF|PIERLESS_ALLOWED_REPOSITORY|PIERLESS_ALLOWED_REF|PIERLESS_ALLOWED_JOB)=' "${ENV_FILE}" > "${TMP_ENV}" || true
   fi
   {
     printf 'ACTIONS_RUNNER_HOOK_JOB_STARTED=%s\n' "${HOOK_DEST}"
-    printf 'GANGPLANK_ALLOWED_WORKFLOW_REF=%s\n' "${ALLOWED_WORKFLOW_REF}"
-    printf 'GANGPLANK_ALLOWED_REPOSITORY=%s\n' "${REPO_SLUG}"
-    printf 'GANGPLANK_ALLOWED_REF=%s\n' "${ALLOWED_REF}"
-    printf 'GANGPLANK_ALLOWED_JOB=%s\n' "${JOB}"
+    printf 'PIERLESS_ALLOWED_WORKFLOW_REF=%s\n' "${ALLOWED_WORKFLOW_REF}"
+    printf 'PIERLESS_ALLOWED_REPOSITORY=%s\n' "${REPO_SLUG}"
+    printf 'PIERLESS_ALLOWED_REF=%s\n' "${ALLOWED_REF}"
+    printf 'PIERLESS_ALLOWED_JOB=%s\n' "${JOB}"
   } >> "${TMP_ENV}"
   mv "${TMP_ENV}" "${ENV_FILE}"
   log "hook installed at ${HOOK_DEST}; ${ENV_FILE} updated"

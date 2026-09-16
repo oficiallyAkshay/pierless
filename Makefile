@@ -38,5 +38,5 @@ lint:
 
 coverage:
 	@mkdir -p coverage
-	GANGPLANK_TRACE_FILE="$(CURDIR)/coverage/trace.log" bash tests/run.sh
+	PIERLESS_TRACE_FILE="$(CURDIR)/coverage/trace.log" bash tests/run.sh
 	python3 scripts/ci/coverage-check.py --trace coverage/trace.log

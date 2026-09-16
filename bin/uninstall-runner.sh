@@ -11,9 +11,9 @@
 
 set -euo pipefail
 
-LABEL="gangplank.runner"
+LABEL="pierless.runner"
 REPO_SLUG=""
-RUNNER_DIR="${HOME:-$PWD}/.gangplank/runner"
+RUNNER_DIR="${HOME:-$PWD}/.pierless/runner"
 PURGE=0
 
 usage() {

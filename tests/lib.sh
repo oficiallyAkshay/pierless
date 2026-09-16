@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/lib.sh — tiny assertion library for gangplank tests. No bats.
+# tests/lib.sh — tiny assertion library for pierless tests. No bats.
 #
 # Sourced by every tests/*.test.sh. Each test file runs as its own bash
 # process (invoked by tests/run.sh), so the counters below are private to
@@ -12,19 +12,19 @@ set -o pipefail
 # this repo targets bash 3.2 (no associative arrays either); required
 # env vars are still checked explicitly with ${VAR:-} guards.
 
-GANGPLANK_TEST_COUNT=0
-GANGPLANK_TEST_FAILURES=0
-GANGPLANK_TEST_TMPDIRS=()
-GANGPLANK_TEST_STUB_DIR=""
+PIERLESS_TEST_COUNT=0
+PIERLESS_TEST_FAILURES=0
+PIERLESS_TEST_TMPDIRS=()
+PIERLESS_TEST_STUB_DIR=""
 
 pass() {
-  GANGPLANK_TEST_COUNT=$((GANGPLANK_TEST_COUNT + 1))
+  PIERLESS_TEST_COUNT=$((PIERLESS_TEST_COUNT + 1))
   printf 'ok - %s\n' "$1"
 }
 
 fail() {
-  GANGPLANK_TEST_COUNT=$((GANGPLANK_TEST_COUNT + 1))
-  GANGPLANK_TEST_FAILURES=$((GANGPLANK_TEST_FAILURES + 1))
+  PIERLESS_TEST_COUNT=$((PIERLESS_TEST_COUNT + 1))
+  PIERLESS_TEST_FAILURES=$((PIERLESS_TEST_FAILURES + 1))
   printf 'not ok - %s\n' "$1"
 }
 
@@ -83,30 +83,30 @@ assert_true() {
 # new_tmpdir — creates a temp dir, tracks it for cleanup on exit, prints path.
 new_tmpdir() {
   local d
-  d="$(mktemp -d "${TMPDIR:-/tmp}/gangplank-test.XXXXXX")"
-  GANGPLANK_TEST_TMPDIRS+=("$d")
+  d="$(mktemp -d "${TMPDIR:-/tmp}/pierless-test.XXXXXX")"
+  PIERLESS_TEST_TMPDIRS+=("$d")
   printf '%s\n' "$d"
 }
 
-_gangplank_test_cleanup() {
+_pierless_test_cleanup() {
   local d
-  for d in "${GANGPLANK_TEST_TMPDIRS[@]}"; do
+  for d in "${PIERLESS_TEST_TMPDIRS[@]}"; do
     [ -n "$d" ] && [ -d "$d" ] && rm -rf "$d"
   done
 }
-trap _gangplank_test_cleanup EXIT
+trap _pierless_test_cleanup EXIT
 
 # stub_bin NAME BODY — puts a fake executable named NAME first on PATH.
 # BODY is the script body (no shebang needed). Calling it again for the
 # same NAME overwrites the stub. All stubs share one dir prepended once.
 stub_bin() {
   local name="$1" body="$2"
-  if [ -z "$GANGPLANK_TEST_STUB_DIR" ]; then
-    GANGPLANK_TEST_STUB_DIR="$(new_tmpdir)"
-    export PATH="$GANGPLANK_TEST_STUB_DIR:$PATH"
+  if [ -z "$PIERLESS_TEST_STUB_DIR" ]; then
+    PIERLESS_TEST_STUB_DIR="$(new_tmpdir)"
+    export PATH="$PIERLESS_TEST_STUB_DIR:$PATH"
   fi
-  printf '#!/usr/bin/env bash\n%s\n' "$body" > "$GANGPLANK_TEST_STUB_DIR/$name"
-  chmod +x "$GANGPLANK_TEST_STUB_DIR/$name"
+  printf '#!/usr/bin/env bash\n%s\n' "$body" > "$PIERLESS_TEST_STUB_DIR/$name"
+  chmod +x "$PIERLESS_TEST_STUB_DIR/$name"
 }
 
 # require_script PATH — prints a skip note and exits 0 (whole file skipped)
@@ -121,6 +121,6 @@ require_script() {
 }
 
 test_summary_and_exit() {
-  printf -- '--- %d assertion(s), %d failed ---\n' "$GANGPLANK_TEST_COUNT" "$GANGPLANK_TEST_FAILURES"
-  [ "$GANGPLANK_TEST_FAILURES" -eq 0 ]
+  printf -- '--- %d assertion(s), %d failed ---\n' "$PIERLESS_TEST_COUNT" "$PIERLESS_TEST_FAILURES"
+  [ "$PIERLESS_TEST_FAILURES" -eq 0 ]
 }

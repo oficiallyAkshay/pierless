@@ -1,5 +1,5 @@
 # examples/deploy.yml — copy this to .github/workflows/deploy.yml in the repo
-# gangplank deploys. runs-on names the labels install-runner.sh registers the
+# pierless deploys. runs-on names the labels install-runner.sh registers the
 # runner under; job-started-gate.sh refuses every workflow but this one on
 # main, so adding a second job here (or a second workflow with these labels)
 # does nothing until the gate is told about it.
@@ -21,15 +21,15 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, macOS, gangplank]
+    runs-on: [self-hosted, macOS, pierless]
     steps:
-      - uses: oficiallyAkshay/gangplank@v0
+      - uses: oficiallyAkshay/pierless@v0
         with:
           repo: ${{ github.workspace }}           # path to the live checkout on this Mac
           install: ""                              # "" = npm install where package(-lock).json changed; "none" disables
           services_dir: scripts/launchd            # repo-relative folder of launchd plists; "" skips
           kick: com.example.dashboard               # space-separated labels to kickstart after a pull
           prune_worktrees: "true"                  # delete worktrees whose PR merged
-          self_label: gangplank.runner              # the runner's own plist label; never reloaded from here
+          self_label: pierless.runner              # the runner's own plist label; never reloaded from here
           on_failure: ./bin/on-failure-slack.sh  # runs once per failing deploy; "" disables. Copy an examples/on-failure-*.sh in.
-          on_recovery: ./bin/on-failure-slack.sh # same script — GANGPLANK_EXIT_CODE=0 tells it this is the recovery call
+          on_recovery: ./bin/on-failure-slack.sh # same script — PIERLESS_EXIT_CODE=0 tells it this is the recovery call
