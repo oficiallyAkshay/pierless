@@ -120,4 +120,41 @@ assert_exit 0 "$e2e_run_ec" "end-to-end: gate.test.sh still passes while traced"
 e2e_check_out="$(cd "$e2e_dir" && python3 scripts/ci/coverage-check.py --trace coverage/trace.log)"
 assert_not_contains "$e2e_check_out" "total=0.0%" "end-to-end: a real traced gate.test.sh run yields non-zero bin/job-started-gate.sh coverage"
 
+# --- lines bash can never trace are not counted against a file ---
+# A usage heredoc's body is data handed to cat, and a case arm's pattern
+# is not a command: bash traces neither, so a script fully exercised by
+# its tests must still score 100%.
+shape_dir="$(new_tmpdir)"
+mkdir -p "$shape_dir/bin" "$shape_dir/coverage"
+cat > "$shape_dir/bin/shapes.sh" <<'EOF'
+#!/usr/bin/env bash
+usage() {
+  cat <<'USAGE'
+usage: shapes <verb>
+  run  do the thing
+USAGE
+}
+case "$1" in
+  run)
+    echo running
+    ;;
+  *)
+    usage
+    ;;
+esac
+EOF
+
+# Every line the shell actually runs, and nothing else.
+cat > "$shape_dir/coverage/trace.log" <<EOF
++trace:$shape_dir/bin/shapes.sh:2:usage
++trace:$shape_dir/bin/shapes.sh:3:cat
++trace:$shape_dir/bin/shapes.sh:8:case
++trace:$shape_dir/bin/shapes.sh:10:echo running
++trace:$shape_dir/bin/shapes.sh:13:usage
+EOF
+
+shape_out="$(cd "$shape_dir" && python3 "$SCRIPT" --trace coverage/trace.log --list-uncovered)"
+assert_contains "$shape_out" "total=100.0%" "coverage: heredoc bodies and case patterns are not coverable lines"
+assert_not_contains "$shape_out" "shapes.sh:" "coverage: nothing untraceable is reported as uncovered"
+
 test_summary_and_exit
