@@ -50,6 +50,14 @@ The macOS leg is the only one that touches launchd, and only in dry-run. Nothing
 
 Open an issue with the failing step's output from the GitHub run and the output of `pierless status`. Never paste anything from your `.env`.
 
+## Releasing
+
+Releases are cut from a tag, not from a PR. First merge a PR that sets `PIERLESS_VERSION` in `action.yml` to the version you are about to release (a later change adds that line to the deploy step's `env`); `scripts/release/check-pin.sh` refuses the release when that value is missing or names a different version, so the composite action can never point at code the tag did not publish. Then push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+`.github/workflows/release.yml` takes it from there. It checks the pin, runs the whole suite, copies `bin/` and `templates/` into both package trees with `scripts/release/stage.sh`, stamps the version into `package.json` and `pyproject.toml`, publishes `pierless` to npm and to PyPI, cuts the GitHub release with the CHANGELOG lines added since the previous version tag, and only then moves the floating `v0` tag onto the new commit. Both registries are reached by trusted publishing, which means an OIDC token minted for that workflow file and its `release` environment: nothing long-lived is stored in this repo, and there is no token to rotate.
+
+The owner does the manual half once, before the first tag. npm has no pending-publisher flow, so the first version must be published by hand: `npm login`, then `npm publish` from a staged `packages/npm`. After that, on npmjs.com, add a trusted publisher to the package for this repository, workflow `release.yml`, environment `release`. On PyPI the same pair is registered up front as a pending publisher for the name `pierless`, with the same workflow file and environment, and the first tag then claims the name. Both the workflow filename and the environment name are part of what the registries trust, so renaming either one means updating the publisher entry on both sites.
+
 ## License
 
 By contributing you agree your work is released under the MIT license in this repo.
