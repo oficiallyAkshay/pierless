@@ -1,0 +1,56 @@
+# tests/claims/runtime-tools.txt — every external command bin/* invokes.
+#
+# The README's "runtime tools" badge is the unmarked list below, so this
+# file is a claim, not a note: tests/claims.test.sh fails when bin/ calls
+# something that is not here AND when something here is no longer called.
+# Add a line only after deciding the new dependency is worth asking a
+# person to install.
+#
+#   (no marker)  a tool the user must have installed
+#   # base       ships with macOS, the only platform pierless targets
+#   # bundled    comes from the actions/runner tarball the installer
+#                downloads and verifies, not from the user
+#
+# Not here, and not a dependency: `npm install --no-audit --no-fund`, the
+# default PIERLESS_INSTALL hook. It runs through `eval` only for a repo
+# that already has a package.json, and any repo can replace it — it is the
+# deployed project's dependency, never pierless's.
+
+git
+gh
+
+awk        # base
+basename   # base
+bash       # base
+cat        # base
+chmod      # base
+cp         # base
+curl       # base
+cut        # base
+date       # base
+dirname    # base
+env        # base
+find       # base
+grep       # base
+head       # base
+hostname   # base
+id         # base
+launchctl  # base
+ls         # base
+mkdir      # base
+mktemp     # base
+mv         # base
+plutil     # base
+rm         # base
+sed        # base
+shasum     # base
+sleep      # base
+sort       # base
+stat       # base
+tail       # base
+tar        # base
+tr         # base
+uname      # base
+xargs      # base
+
+./config.sh  # bundled
