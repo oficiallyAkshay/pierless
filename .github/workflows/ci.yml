@@ -1,6 +1,11 @@
-# .github/workflows/ci.yml — every check runs in parallel on each PR; see
-# CONTRIBUTING.md's "What CI runs" table. Only actions/checkout is used,
-# pinned by full commit SHA. Coverage is computed locally by
+# .github/workflows/ci.yml — three jobs in parallel behind one gate; see
+# CONTRIBUTING.md's "What CI runs" table. `checks` runs the pre-commit
+# hooks a contributor's commit runs, from the same .pre-commit-config.yaml,
+# then actionlint. `tests` runs the suite on Linux and macOS, and the
+# macOS leg alone lints the rendered launchd plist. `coverage` traces the
+# same suite and pushes the badge on a merge to main. `ci` is the only
+# context branch protection asks for. Every action is pinned by full
+# commit SHA. Coverage is computed locally by
 # scripts/ci/coverage-check.py — no Codecov, no upload, no external token.
 name: CI
 
@@ -24,19 +29,25 @@ env:
   ACTIONLINT_SHA256_LINUX_AMD64: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
 
 jobs:
-  shellcheck:
+  checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: sudo apt-get update && sudo apt-get install -y shellcheck
-      - run: shellcheck --severity=error bin/* examples/*.sh tests/*.sh scripts/ci/*.sh
-
-  actionlint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Keyed on the config alone: the hook environments only ever change
+      # when a rev in it changes.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: The hooks a contributor's commit runs
+        env:
+          # That hook reads the staged diff, and nothing is staged in a
+          # checkout — the history is scanned separately.
+          SKIP: gitleaks
+        # pipx ships on the runner image, so pre-commit needs no setup
+        # action and no second thing to pin.
+        run: pipx run pre-commit run --all-files --show-diff-on-failure
       - name: Download pinned actionlint
         run: |
           set -euo pipefail
@@ -65,6 +76,24 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: bash tests/run.sh
+      - name: Render and lint the launchd template
+        # plutil is macOS-only, and so is everything the plist drives.
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          sed \
+            -e "s|@@LABEL@@|pierless.runner|g" \
+            -e "s|@@RUNNER_DIR@@|/tmp/pierless-runner|g" \
+            -e "s|@@HOOK@@|/tmp/pierless-runner/hooks/job-started-gate.sh|g" \
+            -e "s|@@ALLOWED_WORKFLOW_REF@@|owner/repo/.github/workflows/deploy.yml@refs/heads/main|g" \
+            -e "s|@@ALLOWED_REPOSITORY@@|owner/repo|g" \
+            -e "s|@@ALLOWED_REF@@|refs/heads/main|g" \
+            -e "s|@@ALLOWED_JOB@@|deploy|g" \
+            -e "s|@@LOG@@|/tmp/pierless-runner/runner.log|g" \
+            -e "s|@@PATH@@|/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin|g" \
+            -e "s|@@HOME@@|/tmp|g" \
+            templates/launchd.plist.tmpl > /tmp/rendered.plist
+          plutil -lint /tmp/rendered.plist
 
   coverage:
     runs-on: ubuntu-latest
@@ -136,28 +165,6 @@ jobs:
           git -c http.extraheader="AUTHORIZATION: basic ${auth}" \
             push --force "https://github.com/${REPO}.git" HEAD:badges
 
-  plist-lint:
-    runs-on: macos-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Render and lint the launchd template
-        run: |
-          set -euo pipefail
-          sed \
-            -e "s|@@LABEL@@|pierless.runner|g" \
-            -e "s|@@RUNNER_DIR@@|/tmp/pierless-runner|g" \
-            -e "s|@@HOOK@@|/tmp/pierless-runner/hooks/job-started-gate.sh|g" \
-            -e "s|@@ALLOWED_WORKFLOW_REF@@|owner/repo/.github/workflows/deploy.yml@refs/heads/main|g" \
-            -e "s|@@ALLOWED_REPOSITORY@@|owner/repo|g" \
-            -e "s|@@ALLOWED_REF@@|refs/heads/main|g" \
-            -e "s|@@ALLOWED_JOB@@|deploy|g" \
-            -e "s|@@LOG@@|/tmp/pierless-runner/runner.log|g" \
-            -e "s|@@PATH@@|/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin|g" \
-            -e "s|@@HOME@@|/tmp|g" \
-            templates/launchd.plist.tmpl > /tmp/rendered.plist
-          plutil -lint /tmp/rendered.plist
-
   # The single context branch protection requires. Every check above feeds
   # it, so the ruleset never has to be edited again when a job is added —
   # only this job's `needs:` (tests/workflow.test.sh fails if one is
@@ -165,7 +172,7 @@ jobs:
   # reach the gate at all; without it the gate would be skipped too, and a
   # skipped required check reads as green to GitHub.
   ci:
-    needs: [shellcheck, actionlint, tests, coverage, plist-lint]
+    needs: [checks, tests, coverage]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

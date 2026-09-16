@@ -1,0 +1,32 @@
+# .pre-commit-config.yaml — one list of hooks, run by a contributor's
+# commit and by CI's `checks` job, so the two cannot drift. `make hooks`
+# installs them; `make lint` runs them over every file the way CI does.
+#
+# actionlint is deliberately not a hook. ci.yml downloads one pinned,
+# checksum-verified binary for it; a hook would mean a Go toolchain and a
+# build in every contributor's hook cache, for a file that changes a few
+# times a year.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      # Staged changes only. Scanning the whole history is CI's job, and
+      # CI skips this hook because it runs gitleaks against the history
+      # directly.
+      - id: gitleaks
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1-1
+    hooks:
+      - id: shellcheck
+        args: [--severity=error]
+        # The hook already selects shell files by shebang, which is the
+        # only thing that finds the extensionless scripts in bin/. This
+        # narrows that to the directories the repo actually owns.
+        files: ^(bin/|examples/.*\.sh|tests/.*\.sh|scripts/ci/.*\.sh|scripts/release/.*\.sh)
+
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.23.2
+    hooks:
+      - id: markdownlint-cli2
+        args: [--config, .github/.markdownlint.jsonc]

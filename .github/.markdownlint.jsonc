@@ -1,0 +1,20 @@
+// .github/.markdownlint.jsonc — the markdownlint rules the
+// markdownlint-cli2 hook in .pre-commit-config.yaml runs with. Every
+// rule is on except the three below. JSONC, not JSON, so each exception
+// can carry the reason it exists.
+{
+  "default": true,
+
+  // Prose here is one line per idea, so a sentence is one line however
+  // long it reads. Wrapping at 80 would put a line break in the middle
+  // of a thought and make every later edit a reflow.
+  "MD013": false,
+
+  // README.md leaves a two-line gap after a mermaid diagram before the
+  // next heading; that gap is how the rendered page breathes.
+  "MD012": false,
+
+  // .github/PULL_REQUEST_TEMPLATE.md opens at `##` on purpose: GitHub
+  // pastes it into a PR body, where an `#` would outrank the title.
+  "MD041": false
+}
