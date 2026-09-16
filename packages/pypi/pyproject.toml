@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pierless"
+version = "1.2.3"
+requires-python = ">=3.9"
+description = "Merge to main. Your Mac is running it seconds later. No open port, no tunnel, no secret to rotate."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "oficiallyAkshay" }]
+keywords = ["deploy", "github-actions", "self-hosted-runner", "launchd", "macos"]
+classifiers = [
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS :: MacOS X",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Build Tools",
+]
+dependencies = []
+
+[project.scripts]
+pierless = "pierless:main"
+
+[project.urls]
+Homepage = "https://github.com/oficiallyAkshay/pierless"
+Source = "https://github.com/oficiallyAkshay/pierless"
+Issues = "https://github.com/oficiallyAkshay/pierless/issues"
+Changelog = "https://github.com/oficiallyAkshay/pierless/blob/main/CHANGELOG.md"
+
+[tool.hatch.build]
+# bin/ and templates/ under src/pierless/ are the scripts this package
+# exists to ship, and they are git-ignored because stage.sh copies them
+# in. Hatchling drops VCS-ignored files unless told not to; today it
+# reads no ignore file from here (the repo's sits a level up), so an
+# empty wheel would depend on that detail staying true. This says it
+# outright instead.
+ignore-vcs = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pierless"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/pierless", "README.md", "pyproject.toml"]
