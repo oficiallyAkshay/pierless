@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# bin/pierless — CLI dispatcher for install / status / dry-run / uninstall.
+# bin/pierless — CLI dispatcher for install / status / deploy / dry-run /
+# uninstall.
+#
+# `deploy` hands the environment to bin/deploy.sh untouched: deploy.sh
+# reads every PIERLESS_* variable itself, so there is one place that
+# decides what each of them means.
 #
 # `dry-run` runs `install --dry-run` plus, when PIERLESS_REPO is set in
 # the environment, bin/deploy.sh (owned by a sibling script in this repo)
@@ -17,6 +22,7 @@ usage: pierless <verb> [flags]
 verbs:
   install    install and register the self-hosted runner (see bin/install-runner.sh --help)
   status     print runner and deploy status (see bin/status.sh --help)
+  deploy     fast-forward the checkout and run its hooks (see bin/deploy.sh; reads PIERLESS_* from the environment)
   dry-run    install --dry-run, plus a deploy.sh --dry-run when PIERLESS_REPO is set
   uninstall  stop and deregister the runner (see bin/uninstall-runner.sh --help)
 USAGE
@@ -36,6 +42,9 @@ case "${VERB}" in
     ;;
   uninstall)
     exec "${SCRIPT_DIR}/uninstall-runner.sh" "$@"
+    ;;
+  deploy)
+    exec "${SCRIPT_DIR}/deploy.sh" "$@"
     ;;
   dry-run)
     "${SCRIPT_DIR}/install-runner.sh" --dry-run "$@"

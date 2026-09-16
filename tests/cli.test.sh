@@ -18,6 +18,7 @@ rm -f "$out" "$err"
 assert_exit 0 "$ec" "--help: exits 0"
 assert_contains "$help_out" "install" "--help: mentions the install verb"
 assert_contains "$help_out" "status" "--help: mentions the status verb"
+assert_contains "$help_out" "deploy" "--help: mentions the deploy verb"
 assert_contains "$help_out" "dry-run" "--help: mentions the dry-run verb"
 assert_contains "$help_out" "uninstall" "--help: mentions the uninstall verb"
 
@@ -63,6 +64,18 @@ uninstall_out="$(cat "$out")"
 rm -f "$out" "$err"
 assert_exit 0 "$uninstall_ec" "uninstall verb: --help exits 0"
 assert_contains "$uninstall_out" "usage: uninstall-runner.sh" "uninstall verb: reaches uninstall-runner.sh"
+
+# deploy.sh has no --help banner to match on, so the proof that the verb
+# reached it is deploy.sh's own first refusal: PIERLESS_REPO unset is bad
+# configuration (64) and the line naming it comes from deploy.sh itself.
+out="$(mktemp)"; err="$(mktemp)"
+( env -u PIERLESS_REPO bash "$CLI" deploy ) >"$out" 2>"$err"
+deploy_ec=$?
+deploy_err="$(cat "$err")"
+rm -f "$out" "$err"
+assert_exit 64 "$deploy_ec" "deploy verb (no PIERLESS_REPO): exits with deploy.sh's bad-configuration code"
+assert_contains "$deploy_err" "PIERLESS_REPO is not set" "deploy verb: the refusal text comes from deploy.sh"
+assert_contains "$deploy_err" "refusing to guess a checkout" "deploy verb: reaches deploy.sh, not the CLI's own unknown-verb path"
 
 # --- dry-run verb: install-runner.sh --dry-run, PIERLESS_REPO unset ---
 # (no gh stub needed here: install-runner.sh's dry-run path still requests
