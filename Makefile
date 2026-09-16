@@ -1,26 +1,32 @@
 # Makefile — the same checks CI runs, runnable locally.
 #
-# check   shellcheck + actionlint (if present) + tests
+# hooks   installs the pre-commit hooks into this clone, once
+# check   hooks + actionlint (if present) + tests
 # test    tests/run.sh alone
-# lint    shellcheck + actionlint (if present), no tests
+# lint    hooks + actionlint (if present), no tests
 # coverage  tests/run.sh under bash's own line tracing +
 #           scripts/ci/coverage-check.py — no kcov, no container
+#
+# pre-commit itself is one line: `uv tool install pre-commit`, or
+# `pipx install pre-commit`.
 
 SHELL := /bin/bash
 
-SH_SCRIPTS := $(wildcard bin/*) $(wildcard examples/*.sh) $(wildcard tests/*.sh) $(wildcard scripts/ci/*.sh)
 WORKFLOW_FILES := $(wildcard .github/workflows/*.yml)
 
-.PHONY: check test lint coverage
+.PHONY: check test lint coverage hooks
 
 check: lint test
+
+hooks:
+	pre-commit install
 
 test:
 	bash tests/run.sh
 
 lint:
-	@echo "==> shellcheck --severity=error"
-	shellcheck --severity=error $(SH_SCRIPTS)
+	@echo "==> pre-commit run --all-files"
+	pre-commit run --all-files
 	@if command -v actionlint >/dev/null 2>&1; then \
 		echo "==> actionlint"; \
 		actionlint $(WORKFLOW_FILES); \
