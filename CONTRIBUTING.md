@@ -23,6 +23,9 @@ Every check runs in parallel on each PR; a typical run finishes in under two min
 | tests: gate, deploy script, installer dry-run, workflow shape | Linux and macOS | yes |
 | coverage: bash line tracing over the test run, changed lines at or above 90 percent, badge published on main | Linux | yes |
 | plist lint for the launchd definition | macOS | yes |
+| `ci` gate: passes only when every check above reports success | Linux | yes, and it is the only check merge asks for |
+
+The checks above feed the gate, which fails on any one of them that is red, skipped or cancelled. That is why the branch rule names one context and not six: a check added later is covered the moment it is wired into the gate's `needs:`, and `tests/workflow.test.sh` fails if one is left out.
 
 The macOS job is the only one that touches launchd, and only in dry-run. Nothing in CI registers a runner or talks to a real repo.
 

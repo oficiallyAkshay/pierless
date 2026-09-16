@@ -14,7 +14,10 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A superseded PR push has nothing left to prove, but a main run is the
+  # record of what landed — cancelling one would leave main's history
+  # with a gap no later run fills in.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   ACTIONLINT_VERSION: "1.7.12"
@@ -23,6 +26,7 @@ env:
 jobs:
   shellcheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update && sudo apt-get install -y shellcheck
@@ -30,6 +34,7 @@ jobs:
 
   actionlint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Download pinned actionlint
@@ -56,12 +61,14 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: bash tests/run.sh
 
   coverage:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Write access is needed only by the last step (Publish badge, itself
     # gated to push-to-main only) to push the generated svg/json to the
     # orphan badges branch; every other step in this job only reads.
@@ -131,6 +138,7 @@ jobs:
 
   plist-lint:
     runs-on: macos-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Render and lint the launchd template
@@ -149,3 +157,32 @@ jobs:
             -e "s|@@HOME@@|/tmp|g" \
             templates/launchd.plist.tmpl > /tmp/rendered.plist
           plutil -lint /tmp/rendered.plist
+
+  # The single context branch protection requires. Every check above feeds
+  # it, so the ruleset never has to be edited again when a job is added —
+  # only this job's `needs:` (tests/workflow.test.sh fails if one is
+  # missed). `always()` is what makes a skipped or cancelled upstream
+  # reach the gate at all; without it the gate would be skipped too, and a
+  # skipped required check reads as green to GitHub.
+  ci:
+    needs: [shellcheck, actionlint, tests, coverage, plist-lint]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job this gate needs succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          set -euo pipefail
+          echo "results: ${RESULTS}"
+          if [ -z "${RESULTS}" ]; then
+            echo "no upstream results — the gate cannot vouch for anything"
+            exit 1
+          fi
+          for result in ${RESULTS}; do
+            if [ "${result}" != "success" ]; then
+              echo "a job this gate needs did not succeed: ${result}"
+              exit 1
+            fi
+          done
