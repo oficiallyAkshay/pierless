@@ -78,3 +78,24 @@ Throwaway. Lives on this branch only, never on main. Written by more than one se
 - If clonometer is adopted, drop the clones fetcher from `counters.py` and have `installs.json` read clonometer's `clones.json` (`total` or `window.count`) from the same branch, so there is one source for clones. The label then changes from "clones 14d" to whatever window is chosen; update the "How usage is counted" section to match.
 - Cross-repo adoption for pierless, none started: clonometer consumer workflow, a readmerlin pass plus its readme-check workflow (part of the README PR), a herofold hero.
 - Dependabot: pierless has `.github/dependabot.yml` for github-actions only, ungrouped. Add the grouping the clonometer session recommends in the secrets-scan PR or its own small PR.
+
+---
+
+## pierless: steps only the owner can do (from the boomerang session's cross-repo checklist)
+
+- `npm login` and publish; npm trusted publisher; PyPI pending publisher; `TRAFFIC_TOKEN`; Marketplace tick on v0.2.0
+
+---
+
+## pierless (from the ossemble planning session, 2026-09-17, an outside view written before the build sessions reported; where it disagrees with a section above, the section above wins)
+
+Seen from outside. Inputs copied beside this file: `GANGPLANK-HANDOFF.md` (the original goal: installs countable without phoning home) and `PIERLESS-PLAN.md` (the PR sequence, from `~/.claude/plans/structured-marinating-popcorn.md`). Memory note: `pierless-project`.
+
+- Repo is public. Main is at "Four public counters become badge data without pierless ever phoning home".
+- Three open PRs, all checks green and mergeable on 2026-09-17, none merged: #10 npm and PyPI packages by trusted publishing, #11 one pre-commit config for contributors and CI in a single checks job, #12 claim badges proven by a test. Each still needs its independent read-only verifier verdict before auto-merge is armed, unless the pierless session already recorded one.
+- The ruleset still requires the six old job names until the single `ci` gate job is the required context. Swap it once #11 is in.
+- Never reintroduce the name gangplank. `gangplank-scratch-delete-me` is a private leftover repo the owner can delete.
+- Astra consumer: ProjectAstraRepo pins the Action by SHA. PR #1557 there re-pins to the rewritten v0.1.1 commit. When pierless v0.2.0 ships, Astra needs a second PR for the `PIERLESS_*` env rename.
+- Owner's manual steps still open: npm login and first manual publish then trusted publisher, PyPI pending publisher, `TRAFFIC_TOKEN` secret, Marketplace tick on the v0.2.0 release.
+- Later: adopt clonometer for the clone counter, in pierless's own session.
+- The pierless session should append its own block.
