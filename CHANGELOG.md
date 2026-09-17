@@ -2,6 +2,7 @@
 
 One line per merged change, newest first. No version numbers here.
 
+- The runtime-tools, inbound-ports and secrets-to-rotate claims are proven by a test on every run and their badges are written from that proof, not typed by hand.
 - A push to main writes four public counters (clones over 14 days, npm and PyPI downloads over 30 days, and their total) as badge data; nothing runs on a user's machine to report anything.
 - The project is pierless, formerly gangplank: the command, every PIERLESS_ variable, the state dir ~/.pierless, the runner label and the launchd label pierless.runner change with it; an existing runner is uninstalled with the old copy and installed again with this one.
 - The coverage badge reads the published number through the badge service (the old link pointed one folder too high and never rendered), and the zero-is-good badges carry a colour each instead of one grey.
