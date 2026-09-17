@@ -1,0 +1,16 @@
+# Copies staged into the packages by scripts/release/stage.sh, never
+# sources: bin/ and templates/ at the repo root are the only originals.
+packages/npm/bin/
+packages/npm/templates/
+packages/pypi/src/pierless/bin/
+packages/pypi/src/pierless/templates/
+
+# Build output.
+packages/*/dist/
+packages/npm/*.tgz
+node_modules/
+coverage/
+
+# python3 -m pierless, which is how the tests reach the Python wrapper
+# without installing it, writes bytecode next to the wrapper.
+__pycache__/

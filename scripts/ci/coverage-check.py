@@ -6,11 +6,12 @@
 # for bin/ and, when a base ref or diff is given, coverage of just the
 # added lines under bin/. No kcov, no container, no Codecov, no upload.
 #
-# A line is "coverable" when it is not blank, not a comment, and not a
-# bare structural token on its own (`{`, `}`, `fi`, `done`, `esac`,
-# `else`, `then`, `do`, `;;`, `)`) — bash never traces those on their
-# own line, so counting them as coverable would put a ceiling below
-# 100% on files that are fully exercised.
+# A line is "coverable" when bash could report executing it: not blank,
+# not a comment, not a bare structural token on its own (`{`, `}`, `fi`,
+# `done`, `esac`, `else`, `then`, `do`, `;;`, `)`), not a case arm's
+# `verb)` pattern, and not inside a heredoc body — that last one is data
+# handed to a command, not lines the shell runs. Counting any of them
+# would put a ceiling below 100% on files that are fully exercised.
 #
 # Exits 1 only when --min-changed is given, at least one changed line is
 # coverable, and its coverage is below the threshold.
@@ -24,6 +25,11 @@ import sys
 
 TRACE_RE = re.compile(r"^\++trace:(.+):(\d+):")
 STRUCTURAL_TOKENS = {"{", "}", "fi", "done", "esac", "else", "then", "do", ";;", ")"}
+# `<<EOF`, `<<-EOF`, `<<'EOF'`: the word after it ends the body. The
+# identifier class also keeps `<<<` here-strings out, since a `<` is not
+# a word character.
+HEREDOC_RE = re.compile(r"<<-?\s*[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?")
+CASE_PATTERN_RE = re.compile(r"^[^()]+\)$")
 
 
 def canon_bin_path(path, repo_root):
@@ -36,7 +42,37 @@ def canon_bin_path(path, repo_root):
 
 def is_coverable(line):
     text = line.strip()
-    return bool(text) and not text.startswith("#") and text not in STRUCTURAL_TOKENS
+    if not text or text.startswith("#") or text in STRUCTURAL_TOKENS:
+        return False
+    # A case arm's pattern is not a command either: bash traces the
+    # commands inside the arm and never the `verb)` line above them, so
+    # counting it would make every case statement uncoverable by one line
+    # per arm. A line ending in ")" with no "(" of its own is a pattern;
+    # a function header or a command substitution carries the "(".
+    return not CASE_PATTERN_RE.match(text)
+
+
+def coverable_lines(text):
+    """Line numbers in one script that bash can report executing.
+
+    Heredoc bodies are dropped along with comments and structure: that
+    text is data handed to a command, never lines the shell runs, so
+    xtrace has nothing to say about it.
+    """
+    lines = set()
+    terminator = None
+    for n, raw in enumerate(text.splitlines(), start=1):
+        if terminator is not None:
+            if raw.strip() == terminator:
+                terminator = None
+            continue
+        if is_coverable(raw):
+            lines.add(n)
+        if not raw.strip().startswith("#"):
+            opener = HEREDOC_RE.search(raw)
+            if opener:
+                terminator = opener.group(1)
+    return lines
 
 
 def load_coverable(repo_root):
@@ -45,7 +81,7 @@ def load_coverable(repo_root):
         if not os.path.isfile(path):
             continue
         with open(path, errors="replace") as f:
-            lines = {n for n, line in enumerate(f, start=1) if is_coverable(line)}
+            lines = coverable_lines(f.read())
         coverable["bin/" + os.path.basename(path)] = lines
     return coverable
 
