@@ -173,6 +173,16 @@ grep b <<<"$x"
 y=$(( 1 << 2 ))
 echo done # <<EOF
 echo last
+case "$1" in
+  run)
+    z=$(printf a \
+      | tr a b)
+    ;;
+esac
+cat <<END-X
+body
+END-X
+echo tail
 EOF
 
 # Only the first command is traced: every other line must show up.
@@ -186,5 +196,8 @@ assert_contains "$look_out" "looks.sh:5" "coverage: a quoted <<EOF opens no here
 assert_contains "$look_out" "looks.sh:6" "coverage: a <<< here-string opens no heredoc"
 assert_contains "$look_out" "looks.sh:7" "coverage: an arithmetic << opens no heredoc"
 assert_contains "$look_out" "looks.sh:8" "coverage: a <<EOF in a trailing comment opens no heredoc"
+assert_contains "$look_out" "looks.sh:12" "coverage: a command substitution's closing line inside a case arm is coverable"
+assert_not_contains "$look_out" "looks.sh:16" "coverage: a hyphenated heredoc word opens a body that is not coverable"
+assert_contains "$look_out" "looks.sh:18" "coverage: the line after a hyphenated heredoc's terminator is coverable"
 
 test_summary_and_exit
