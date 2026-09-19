@@ -27,6 +27,10 @@ concurrency:
 env:
   ACTIONLINT_VERSION: "1.7.12"
   ACTIONLINT_SHA256_LINUX_AMD64: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+  # The same gitleaks release the pre-commit hook pins.
+  GITLEAKS_VERSION: "8.30.1"
+  GITLEAKS_SHA256_LINUX_X64: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+  PRE_COMMIT_VERSION: "4.6.2"
 
 jobs:
   checks:
@@ -34,6 +38,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Every commit, so the secrets scan below reads the whole history.
+          fetch-depth: 0
       # Keyed on the config alone: the hook environments only ever change
       # when a rev in it changes.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -46,8 +53,19 @@ jobs:
           # checkout — the history is scanned separately.
           SKIP: gitleaks
         # pipx ships on the runner image, so pre-commit needs no setup
-        # action and no second thing to pin.
-        run: pipx run pre-commit run --all-files --show-diff-on-failure
+        # action; its version is pinned above like every other tool.
+        run: pipx run --spec "pre-commit==${PRE_COMMIT_VERSION}" pre-commit run --all-files --show-diff-on-failure
+      - name: Download pinned gitleaks
+        run: |
+          set -euo pipefail
+          asset="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          url="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${asset}"
+          curl -fsSL -o "${asset}" "${url}"
+          echo "${GITLEAKS_SHA256_LINUX_X64}  ${asset}" | sha256sum -c -
+          tar -xzf "${asset}" gitleaks
+          chmod +x gitleaks
+      - name: No secret anywhere in the history
+        run: ./gitleaks git --no-banner --redact .
       - name: Download pinned actionlint
         run: |
           set -euo pipefail
