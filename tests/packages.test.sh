@@ -31,6 +31,12 @@ PYPROJECT="$REPO_ROOT/packages/pypi/pyproject.toml"
 manifest_backup="$(new_tmpdir)"
 cp "$NPM_DIR/package.json" "$manifest_backup/package.json"
 cp "$PYPROJECT" "$manifest_backup/pyproject.toml"
+restore_manifests() {
+  cp "$manifest_backup/package.json" "$NPM_DIR/package.json"
+  cp "$manifest_backup/pyproject.toml" "$PYPROJECT"
+}
+# An interrupted run must not leave a stamped version in tracked files.
+trap 'restore_manifests; _pierless_test_cleanup' EXIT
 
 # The tracked manifests hold the placeholder 0.0.0, never a real version,
 # so the stamping assertions below can only pass if stage.sh stamped.

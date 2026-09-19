@@ -29,9 +29,14 @@ STRUCTURAL_TOKENS = {"{", "}", "fi", "done", "esac", "else", "then", "do", ";;",
 # The delimiter word after an unquoted `<<` or `<<-`: `EOF`, `'EOF'`,
 # `"EOF"`. It is only tried at a `<<` that heredoc_terminator has already
 # found outside quotes, comments and arithmetic, and not part of `<<<`.
-HEREDOC_WORD_RE = re.compile(r"-?[ \t]*([\"']?)([A-Za-z_][A-Za-z0-9_]*)\1")
+HEREDOC_WORD_RE = re.compile(r"(-?)[ \t]*\\?([\"']?)([A-Za-z_][A-Za-z0-9_.-]*)\2")
 CASE_PATTERN_RE = re.compile(r"^[^()]+\)$")
-CASE_OPEN_RE = re.compile(r"(^|[\s;&|(])case\s.*\sin(\s*$|\s*#)")
+# `case` as a command: at the start of the line or after `;`, `&&`, `||`
+# or `$(` — never inside a comment or an echoed string.
+CASE_OPEN_RE = re.compile(r"(^|;|&&|\|\||\$\()\s*case\s.*\sin(\s*$|\s+#)")
+# An arm ends at `;;`, `;&` or `;;&`, so the next non-blank line is a pattern.
+ARM_END_RE = re.compile(r";;&?\s*(#.*)?$|;&\s*(#.*)?$")
+ESAC_RE = re.compile(r"(^|;;\s*)esac\b")
 
 
 def canon_bin_path(path, repo_root):
@@ -42,21 +47,22 @@ def canon_bin_path(path, repo_root):
     return path[idx + 1:] if idx != -1 else None
 
 
-def is_coverable(line, in_case=False):
+def is_coverable(line, at_pattern=False):
     text = line.strip()
     if not text or text.startswith("#") or text in STRUCTURAL_TOKENS:
         return False
     # A case arm's pattern is not a command either: bash traces the
     # commands inside the arm and never the `verb)` line above them, so
     # counting it would make every case statement uncoverable by one line
-    # per arm. Only inside a `case ... in` block is a line ending in ")"
-    # with no "(" of its own a pattern; elsewhere it is the last line of a
-    # multi-line command substitution, which bash does run.
-    return not (in_case and CASE_PATTERN_RE.match(text))
+    # per arm. A pattern can only stand right after `case ... in` or after
+    # the `;;` that ends the previous arm; anywhere else a line ending in
+    # ")" is the last line of a multi-line command substitution, which bash
+    # does run.
+    return not (at_pattern and CASE_PATTERN_RE.match(text))
 
 
 def heredoc_terminator(raw):
-    """The word that ends a heredoc opened on this line, or None.
+    """(word, dash) for a heredoc opened on this line, or None.
 
     Walks the line the way the shell reads it, so a `<<` inside quotes,
     after a comment's `#`, inside `$(( ))` / `(( ))` arithmetic, or as
@@ -96,7 +102,7 @@ def heredoc_terminator(raw):
         elif raw.startswith("<<", i) and not arith:
             m = HEREDOC_WORD_RE.match(raw, i + 2)
             if m:
-                return m.group(2)
+                return m.group(3), bool(m.group(1))
         i += 1
     return None
 
@@ -109,21 +115,30 @@ def coverable_lines(text):
     xtrace has nothing to say about it.
     """
     lines = set()
-    terminator = None
+    heredoc = None
     case_depth = 0
+    at_pattern = False
     for n, raw in enumerate(text.splitlines(), start=1):
-        if terminator is not None:
-            if raw.strip() == terminator:
-                terminator = None
+        if heredoc is not None:
+            word, dash = heredoc
+            # `<<-` strips leading tabs from the terminator; plain `<<`
+            # needs it alone on the line.
+            if (raw.lstrip("\t") if dash else raw) == word:
+                heredoc = None
             continue
-        if is_coverable(raw, in_case=case_depth > 0):
-            lines.add(n)
         stripped = raw.strip()
+        if is_coverable(raw, at_pattern=case_depth > 0 and at_pattern):
+            lines.add(n)
+        if stripped and not stripped.startswith("#"):
+            at_pattern = False
         if CASE_OPEN_RE.search(stripped):
             case_depth += 1
-        elif case_depth and re.match(r"esac\b", stripped):
+            at_pattern = True
+        elif case_depth and ESAC_RE.search(stripped):
             case_depth -= 1
-        terminator = heredoc_terminator(raw)
+        elif case_depth and ARM_END_RE.search(stripped):
+            at_pattern = True
+        heredoc = heredoc_terminator(raw)
     return lines
 
 
