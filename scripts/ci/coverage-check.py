@@ -9,9 +9,10 @@
 # A line is "coverable" when bash could report executing it: not blank,
 # not a comment, not a bare structural token on its own (`{`, `}`, `fi`,
 # `done`, `esac`, `else`, `then`, `do`, `;;`, `)`), not a case arm's
-# `verb)` pattern, and not inside a heredoc body — that last one is data
-# handed to a command, not lines the shell runs. Counting any of them
-# would put a ceiling below 100% on files that are fully exercised.
+# `verb)` pattern inside a `case ... in` block, and not inside a heredoc
+# body — that last one is data handed to a command, not lines the shell
+# runs. Counting any of them would put a ceiling below 100% on files that
+# are fully exercised.
 #
 # Exits 1 only when --min-changed is given, at least one changed line is
 # coverable, and its coverage is below the threshold.
@@ -25,11 +26,12 @@ import sys
 
 TRACE_RE = re.compile(r"^\++trace:(.+):(\d+):")
 STRUCTURAL_TOKENS = {"{", "}", "fi", "done", "esac", "else", "then", "do", ";;", ")"}
-# `<<EOF`, `<<-EOF`, `<<'EOF'`: the word after it ends the body. The
-# identifier class also keeps `<<<` here-strings out, since a `<` is not
-# a word character.
-HEREDOC_RE = re.compile(r"<<-?\s*[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?")
+# The delimiter word after an unquoted `<<` or `<<-`: `EOF`, `'EOF'`,
+# `"EOF"`. It is only tried at a `<<` that heredoc_terminator has already
+# found outside quotes, comments and arithmetic, and not part of `<<<`.
+HEREDOC_WORD_RE = re.compile(r"-?[ \t]*([\"']?)([A-Za-z_][A-Za-z0-9_]*)\1")
 CASE_PATTERN_RE = re.compile(r"^[^()]+\)$")
+CASE_OPEN_RE = re.compile(r"(^|[\s;&|(])case\s.*\sin(\s*$|\s*#)")
 
 
 def canon_bin_path(path, repo_root):
@@ -40,16 +42,63 @@ def canon_bin_path(path, repo_root):
     return path[idx + 1:] if idx != -1 else None
 
 
-def is_coverable(line):
+def is_coverable(line, in_case=False):
     text = line.strip()
     if not text or text.startswith("#") or text in STRUCTURAL_TOKENS:
         return False
     # A case arm's pattern is not a command either: bash traces the
     # commands inside the arm and never the `verb)` line above them, so
     # counting it would make every case statement uncoverable by one line
-    # per arm. A line ending in ")" with no "(" of its own is a pattern;
-    # a function header or a command substitution carries the "(".
-    return not CASE_PATTERN_RE.match(text)
+    # per arm. Only inside a `case ... in` block is a line ending in ")"
+    # with no "(" of its own a pattern; elsewhere it is the last line of a
+    # multi-line command substitution, which bash does run.
+    return not (in_case and CASE_PATTERN_RE.match(text))
+
+
+def heredoc_terminator(raw):
+    """The word that ends a heredoc opened on this line, or None.
+
+    Walks the line the way the shell reads it, so a `<<` inside quotes,
+    after a comment's `#`, inside `$(( ))` / `(( ))` arithmetic, or as
+    part of a `<<<` here-string opens nothing.
+    """
+    quote = None
+    arith = 0
+    i, n = 0, len(raw)
+    while i < n:
+        c = raw[i]
+        if quote:
+            if c == "\\" and quote == '"':
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+            i += 1
+            continue
+        if c == "\\":
+            i += 2
+            continue
+        if c in "'\"":
+            quote = c
+        elif c == "#" and (i == 0 or raw[i - 1] in " \t;&|("):
+            return None
+        elif raw.startswith("((", i):
+            arith += 1
+            i += 2
+            continue
+        elif raw.startswith("))", i) and arith:
+            arith -= 1
+            i += 2
+            continue
+        elif raw.startswith("<<<", i):
+            i += 3
+            continue
+        elif raw.startswith("<<", i) and not arith:
+            m = HEREDOC_WORD_RE.match(raw, i + 2)
+            if m:
+                return m.group(2)
+        i += 1
+    return None
 
 
 def coverable_lines(text):
@@ -61,17 +110,20 @@ def coverable_lines(text):
     """
     lines = set()
     terminator = None
+    case_depth = 0
     for n, raw in enumerate(text.splitlines(), start=1):
         if terminator is not None:
             if raw.strip() == terminator:
                 terminator = None
             continue
-        if is_coverable(raw):
+        if is_coverable(raw, in_case=case_depth > 0):
             lines.add(n)
-        if not raw.strip().startswith("#"):
-            opener = HEREDOC_RE.search(raw)
-            if opener:
-                terminator = opener.group(1)
+        stripped = raw.strip()
+        if CASE_OPEN_RE.search(stripped):
+            case_depth += 1
+        elif case_depth and re.match(r"esac\b", stripped):
+            case_depth -= 1
+        terminator = heredoc_terminator(raw)
     return lines
 
 

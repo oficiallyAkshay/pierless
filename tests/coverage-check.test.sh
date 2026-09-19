@@ -157,4 +157,34 @@ shape_out="$(cd "$shape_dir" && python3 "$SCRIPT" --trace coverage/trace.log --l
 assert_contains "$shape_out" "total=100.0%" "coverage: heredoc bodies and case patterns are not coverable lines"
 assert_not_contains "$shape_out" "shapes.sh:" "coverage: nothing untraceable is reported as uncovered"
 
+# --- look-alikes stay coverable ---
+# A multi-line command substitution's last line ends in ")" like a case
+# pattern but is a command bash runs; a "<<" inside quotes, a comment,
+# arithmetic or a "<<<" here-string opens no heredoc, so the lines after
+# it still count. Each untraced one must be reported.
+look_dir="$(new_tmpdir)"
+mkdir -p "$look_dir/bin" "$look_dir/coverage"
+cat > "$look_dir/bin/looks.sh" <<'EOF'
+#!/usr/bin/env bash
+x=$(printf a \
+  | tr a b)
+echo "a <<EOF"
+grep b <<<"$x"
+y=$(( 1 << 2 ))
+echo done # <<EOF
+echo last
+EOF
+
+# Only the first command is traced: every other line must show up.
+cat > "$look_dir/coverage/trace.log" <<EOF
++trace:$look_dir/bin/looks.sh:2:x=b
+EOF
+
+look_out="$(cd "$look_dir" && python3 "$SCRIPT" --trace coverage/trace.log --list-uncovered)"
+assert_contains "$look_out" "looks.sh:3" "coverage: a command substitution's closing line outside a case is coverable"
+assert_contains "$look_out" "looks.sh:5" "coverage: a quoted <<EOF opens no heredoc"
+assert_contains "$look_out" "looks.sh:6" "coverage: a <<< here-string opens no heredoc"
+assert_contains "$look_out" "looks.sh:7" "coverage: an arithmetic << opens no heredoc"
+assert_contains "$look_out" "looks.sh:8" "coverage: a <<EOF in a trailing comment opens no heredoc"
+
 test_summary_and_exit

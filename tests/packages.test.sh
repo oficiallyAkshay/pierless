@@ -32,6 +32,11 @@ manifest_backup="$(new_tmpdir)"
 cp "$NPM_DIR/package.json" "$manifest_backup/package.json"
 cp "$PYPROJECT" "$manifest_backup/pyproject.toml"
 
+# The tracked manifests hold the placeholder 0.0.0, never a real version,
+# so the stamping assertions below can only pass if stage.sh stamped.
+assert_contains "$(grep '"version"' "$NPM_DIR/package.json")" '"0.0.0"' "manifests: package.json is committed at 0.0.0"
+assert_contains "$(grep '^version = ' "$PYPROJECT")" '"0.0.0"' "manifests: pyproject.toml is committed at 0.0.0"
+
 out="$(mktemp)"; err="$(mktemp)"
 bash "$STAGE" "$VERSION" >"$out" 2>"$err"
 stage_ec=$?
