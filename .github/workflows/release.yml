@@ -77,7 +77,7 @@ jobs:
           # Trusted publishing over OIDC needs npm 11.5.1 or newer; the
           # node 22 image ships an older npm. Provenance comes from the
           # package's own publishConfig, so publish takes no flags.
-          npm install -g npm@latest
+          npm install -g npm@11
           npm publish
 
   pypi:
@@ -140,7 +140,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" --title "$TAG" --notes-file notes.md
+        # A re-run after a later job failed finds the release already made,
+        # so it refreshes the notes instead of failing on the duplicate.
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file notes.md
+          fi
 
       - name: Move the floating v0 tag onto this release
         # v0 is what a consumer's `uses: oficiallyAkshay/pierless@v0`
