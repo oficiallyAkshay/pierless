@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pierless"
-version = "1.2.3"
+version = "0.0.0"
 requires-python = ">=3.9"
 description = "Merge to main. Your Mac is running it seconds later. No open port, no tunnel, no secret to rotate."
 readme = "README.md"
