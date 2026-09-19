@@ -30,3 +30,6 @@ repos:
     hooks:
       - id: markdownlint-cli2
         args: [--config, .github/.markdownlint.jsonc]
+        # A session handoff note: throwaway, deleted once picked up, and
+        # not documentation anyone reads on the rendered site.
+        exclude: ^\.github/HANDOFF\.md$
