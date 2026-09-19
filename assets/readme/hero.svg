@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 500" width="820" height="500" role="img" aria-labelledby="hero-title">
+  <title id="hero-title">Merge it. Pierless takes it from there: it deploys instantly, fixes stuck deploys and dropped daemons on its own, reinstalls only what changed, and stays quiet unless something is red. No pier, no port: it drops anchor itself</title>
+  <defs>
+    <filter id="rough" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G"/></filter>
+    <filter id="roughds" x="-20%" y="-30%" width="140%" height="170%"><feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="3" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G" result="d"/><feDropShadow in="d" dx="1" dy="3" stdDeviation="2.5" flood-color="#2a1d0c" flood-opacity="0.2"/></filter>
+    <filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+    <radialGradient id="vignette" cx="50%" cy="45%" r="75%"><stop offset="60%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#3b2a12" stop-opacity="0.16"/></radialGradient>
+    <style>
+      .serif { font-family: Georgia, "Iowan Old Style", Palatino, "Palatino Linotype", "Times New Roman", serif; }
+      .sans { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+      .hand { font-family: "Bradley Hand", "Segoe Print", "Chalkboard SE", cursive; }
+      .bg { fill: #f3ead3; } .grain { opacity: 0.09; }
+      .rhumb { fill: none; stroke: #1f2d45; stroke-width: 0.8; opacity: 0.1; }
+      .ink { fill: #1f2d45; } .inks { stroke: #1f2d45; } .muted { fill: #6b5d48; } .sound { fill: #6b5d48; opacity: 0.45; font-style: italic; }
+      .brass { fill: #a8741f; } .brass-s { stroke: #b8862f; }
+      .star-fill { fill: #1f2d45; } .star-open { fill: #f7f0de; stroke: #1f2d45; stroke-width: 1.2; }
+      .ring { fill: none; stroke: #1f2d45; stroke-width: 1.2; }
+      .paper { fill: #fbf5e6; stroke: #3b3326; stroke-width: 1.8; } .chrome { fill: #efe5cf; stroke: #9c8b6e; stroke-width: 1.2; } .dot { fill: #9c8b6e; } .bar { fill: #e0d4ba; }
+      .rope { fill: none; stroke: #a67c45; stroke-width: 4.5; stroke-linecap: round; }
+      .twist { fill: none; stroke: #6e4e27; stroke-width: 4.5; stroke-dasharray: 1.6 4.4; }
+      .grommet { fill: #f3ead3; stroke: #b8862f; stroke-width: 3; }
+      .hub { fill: #1f3a66; stroke: #b8862f; stroke-width: 3.5; }
+      .anchor { fill: none; stroke: #f7f0de; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+      .gull { fill: none; stroke: #3b3326; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      .stars, .moon { display: none; }
+      .w1 { fill: #d3dfdc; } .w2 { fill: #a9c3c4; } .w3 { fill: #7ea3ab; }
+      .crest { fill: none; stroke: #1f2d45; stroke-width: 1.2; stroke-linecap: round; opacity: 0.45; }
+      .hull { fill: #9a6a3a; stroke: #2b2118; stroke-width: 1.6; stroke-linejoin: round; } .sail { fill: #f9f2df; stroke: #2b2118; stroke-width: 1.6; stroke-linejoin: round; } .line { fill: none; stroke: #2b2118; stroke-width: 1.3; }
+      .c-navy { fill: #fbf5e6; stroke: #2b4a7e; stroke-width: 2; } .c-sea { fill: #fbf5e6; stroke: #2f7d6d; stroke-width: 2; } .c-ochre { fill: #fbf5e6; stroke: #b7791f; stroke-width: 2; } .c-plum { fill: #fbf5e6; stroke: #7a3b69; stroke-width: 2; }
+      .g { fill: none; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+      .i-navy { stroke: #2b4a7e; } .i-sea { stroke: #2f7d6d; } .i-ochre { stroke: #b7791f; } .i-plum { stroke: #7a3b69; }
+      .vig { fill: url(#vignette); }
+      @media (prefers-color-scheme: dark) {
+        .bg { fill: #122036; } .grain { opacity: 0.07; }
+        .rhumb { stroke: #c9d3e3; opacity: 0.1; }
+        .ink { fill: #ece3cc; } .inks { stroke: #ece3cc; } .muted { fill: #a6b3c8; } .sound { fill: #a6b3c8; }
+        .brass { fill: #e0b562; } .brass-s { stroke: #d8a94f; }
+        .star-fill { fill: #ece3cc; } .star-open { fill: #122036; stroke: #ece3cc; } .ring { stroke: #ece3cc; }
+        .paper { fill: #1a2a44; stroke: #7f8fa8; } .chrome { fill: #22344f; stroke: #6d7c95; } .dot { fill: #6d7c95; } .bar { fill: #30425f; }
+        .rope { stroke: #cfa66a; } .twist { stroke: #8a6a3c; } .grommet { fill: #122036; stroke: #d8a94f; }
+        .hub { fill: #28508f; stroke: #d8a94f; }
+        .gull { stroke: #c9d3e3; }
+        .stars { display: inline; fill: #ece3cc; } .moon { display: inline; fill: #ece3cc; }
+        .w1 { fill: #1b3252; } .w2 { fill: #1f3d63; } .w3 { fill: #254a78; } .crest { stroke: #c9d3e3; opacity: 0.35; }
+        .hull { fill: #8a5d33; stroke: #ece3cc; } .sail { fill: #ece3cc; stroke: #0e1a2c; } .line { stroke: #ece3cc; }
+        .c-navy { fill: #1a2a44; stroke: #8fb4ff; } .c-sea { fill: #1a2a44; stroke: #6fd1b9; } .c-ochre { fill: #1a2a44; stroke: #f0c064; } .c-plum { fill: #1a2a44; stroke: #d69ad0; }
+        .i-navy { stroke: #8fb4ff; } .i-sea { stroke: #6fd1b9; } .i-ochre { stroke: #f0c064; } .i-plum { stroke: #d69ad0; }
+        .vig { opacity: 0.6; }
+      }
+    </style>
+  </defs>
+  <rect class="bg" x="0" y="0" width="820" height="500"/>
+  <g transform="translate(764,58)"><path class="rhumb" d="M0,0 L0,-900 M0,0 L344,-831 M0,0 L636,-636 M0,0 L831,-344 M0,0 L900,0 M0,0 L831,344 M0,0 L636,636 M0,0 L344,831 M0,0 L0,900 M0,0 L-344,831 M0,0 L-636,636 M0,0 L-831,344 M0,0 L-900,0 M0,0 L-831,-344 M0,0 L-636,-636 M0,0 L-344,-831"/></g>
+  <g class="sound serif" font-size="11"><text x="176" y="118">7</text><text x="300" y="148">12</text><text x="84" y="380">9</text><text x="330" y="372">11</text><text x="760" y="420">8</text><text x="410" y="96">14</text><text x="150" y="490">4</text><text x="430" y="494">6</text><text x="690" y="488">5</text></g>
+  <g class="moon"><path d="M128,100 a14,14 0 1 0 6,24 a11,11 0 1 1 -6,-24 z"/></g>
+  <g class="stars"><circle cx="610" cy="30" r="1.3"/><circle cx="560" cy="78" r="1.1"/><circle cx="96" cy="100" r="1.2"/><circle cx="40" cy="150" r="1"/><circle cx="330" cy="110" r="1"/><circle cx="800" cy="130" r="1.2"/><path d="M640,64 l1.6,-5 1.6,5 5,1.6 -5,1.6 -1.6,5 -1.6,-5 -5,-1.6 z"/></g>
+  <g transform="translate(764,58)" filter="url(#rough)"><circle class="ring" r="28"/><circle class="ring" r="31" stroke-dasharray="1.5 3"/><polygon class="star-open" points="0,-34 2.7,-6.5 14.1,-14.1 6.5,-2.7 34,0 6.5,2.7 14.1,14.1 2.7,6.5 0,34 -2.7,6.5 -14.1,14.1 -6.5,2.7 -34,0 -6.5,-2.7 -14.1,-14.1 -2.7,-6.5"/><path class="star-fill" d="M0,0 L0,-34 L-2.7,-6.5 Z M0,0 L34,0 L6.5,-2.7 Z M0,0 L0,34 L2.7,6.5 Z M0,0 L-34,0 L-6.5,2.7 Z"/><circle class="star-fill" r="2"/></g>
+  <text class="serif ink" x="764" y="17" font-size="11" font-weight="700" text-anchor="middle">N</text>
+  <g class="gull" filter="url(#rough)"><path d="M30,44 q7,-8 14,0 q7,-8 14,0"/><path d="M76,64 q5,-6 10,0 q5,-6 10,0"/></g>
+  <text class="serif ink" x="400" y="42" font-size="27" font-weight="700" text-anchor="middle">Merge it. <tspan class="brass">Pierless</tspan> takes it from there.</text>
+  <text class="serif muted" x="400" y="68" font-size="16" font-style="italic" text-anchor="middle">four things happen, all on their own</text>
+  <g transform="rotate(-2 160 255)">
+    <rect class="paper" x="40" y="178" width="240" height="154" rx="6" filter="url(#roughds)"/>
+    <rect class="chrome" x="54" y="192" width="192" height="19" rx="4"/>
+    <circle class="dot" cx="64" cy="201.5" r="2.3"/><circle class="dot" cx="72" cy="201.5" r="2.3"/><circle class="dot" cx="80" cy="201.5" r="2.3"/>
+    <rect class="bar" x="58" y="226" width="140" height="8" rx="4"/>
+    <rect class="bar" x="58" y="241" width="96" height="7" rx="3.5"/>
+    <rect x="58" y="262" width="160" height="32" rx="16" fill="#1f7a45"/>
+    <g transform="translate(69,270) scale(0.62)" stroke="#f7f0de" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="5" r="2.5"/><circle cx="17" cy="5" r="2.5"/><circle cx="12" cy="20" r="2.5"/><path d="M7,7.5 V12 C7,15.5 9.5,16.5 10.7,17.5"/><path d="M17,7.5 V12 C17,15.5 14.5,16.5 13.3,17.5"/></g>
+    <text class="sans" x="90" y="283" font-size="12.5" font-weight="600" fill="#f7f0de">Merge pull request</text>
+    <text class="serif muted" x="58" y="318" font-size="12" font-style="italic">the only thing you do</text>
+    <circle class="grommet" cx="266" cy="255" r="6.5"/>
+  </g>
+  <g filter="url(#rough)"><path class="rope" d="M272,255 C 295,248 314,262 334,255"/><path class="twist" d="M272,255 C 295,248 314,262 334,255"/></g>
+  <g filter="url(#rough)"><circle cx="370" cy="255" r="45" class="rope" stroke-width="3.5"/><circle cx="370" cy="255" r="45" class="twist" stroke-width="3.5"/></g>
+  <circle class="hub" cx="370" cy="255" r="34" filter="url(#roughds)"/>
+  <g class="anchor" transform="translate(354.4,241.2) scale(1.3)"><circle cx="12" cy="5" r="3"/><path d="M12,22 V8"/><path d="M5,12 H2 a10,10 0 0 0 20,0 h-3"/></g>
+  <text class="serif brass" x="370" y="321" font-size="17" font-weight="700" text-anchor="middle">Pierless</text>
+  <text class="hand muted" x="176" y="402" font-size="17" transform="rotate(-3 176 402)">no pier, no port.</text>
+  <text class="hand muted" x="192" y="424" font-size="17" transform="rotate(-3 192 424)">it drops anchor itself.</text>
+  <path class="line" d="M342,404 C 372,394 380,362 372,334" filter="url(#rough)"/>
+  <path class="line" d="M365,342 L372,332 L379,341"/>
+  <g filter="url(#rough)">
+    <path class="rope" d="M404,255 C 422,255 422,128 450,128"/><path class="twist" d="M404,255 C 422,255 422,128 450,128"/>
+    <path class="rope" d="M404,255 C 422,255 422,213 450,213"/><path class="twist" d="M404,255 C 422,255 422,213 450,213"/>
+    <path class="rope" d="M404,255 C 422,255 422,298 450,298"/><path class="twist" d="M404,255 C 422,255 422,298 450,298"/>
+    <path class="rope" d="M404,255 C 422,255 422,383 450,383"/><path class="twist" d="M404,255 C 422,255 422,383 450,383"/>
+  </g>
+  <g transform="rotate(-1.2 585 128)">
+    <rect class="c-navy" x="440" y="95" width="290" height="66" rx="6" filter="url(#roughds)"/>
+    <circle class="grommet" cx="456" cy="128" r="6.5"/>
+    <g class="g i-navy" transform="translate(476,115) scale(0.833)"><path d="M21,15 v4 a2,2 0 0 1 -2,2 H5 a2,2 0 0 1 -2,-2 v-4"/><path d="M7,10 L12,15 L17,10"/><path d="M12,15 V3"/></g>
+    <text class="serif ink" x="512" y="125" font-size="19" font-weight="700">Deploys instantly</text>
+    <text class="serif muted" x="512" y="146" font-size="13.5" font-style="italic">the moment you merge</text>
+  </g>
+  <g transform="rotate(0.9 585 213)">
+    <rect class="c-sea" x="440" y="180" width="290" height="66" rx="6" filter="url(#roughds)"/>
+    <circle class="grommet" cx="456" cy="213" r="6.5"/>
+    <g class="g i-sea" transform="translate(476,200) scale(0.833)"><path d="M22,5 v6 h-6"/><path d="M2,19 v-6 h6"/><path d="M4,10 a9,9 0 0 1 15,-4 l3,3"/><path d="M20,14 a9,9 0 0 1 -15,4 l-3,-3"/></g>
+    <text class="serif ink" x="512" y="210" font-size="19" font-weight="700">Fixes itself</text>
+    <text class="serif muted" x="512" y="231" font-size="13.5" font-style="italic">stuck deploys, dropped daemons</text>
+  </g>
+  <g transform="rotate(-0.6 585 298)">
+    <rect class="c-ochre" x="440" y="265" width="290" height="66" rx="6" filter="url(#roughds)"/>
+    <circle class="grommet" cx="456" cy="298" r="6.5"/>
+    <g class="g i-ochre" transform="translate(476,285)"><circle cx="10" cy="10" r="8"/><circle cx="10" cy="10" r="4"/><circle cx="10" cy="10" r="1"/></g>
+    <text class="serif ink" x="512" y="295" font-size="19" font-weight="700">Only what changed</text>
+    <text class="serif muted" x="512" y="316" font-size="13.5" font-style="italic">never a full reinstall</text>
+  </g>
+  <g transform="rotate(1.4 585 383)">
+    <rect class="c-plum" x="440" y="350" width="290" height="66" rx="6" filter="url(#roughds)"/>
+    <circle class="grommet" cx="456" cy="383" r="6.5"/>
+    <g class="g i-plum" transform="translate(476,370) scale(0.833)"><path d="M18,8 a6,6 0 0 0 -12,0 c0,7 -3,9 -3,9 h18 s-3,-2 -3,-9"/><path d="M13.73,21 a2,2 0 0 1 -3.46,0"/></g>
+    <text class="serif ink" x="512" y="380" font-size="19" font-weight="700">Stays quiet</text>
+    <text class="serif muted" x="512" y="401" font-size="13.5" font-style="italic">alerts only when something's red</text>
+  </g>
+  <g filter="url(#rough)">
+    <path class="w1" d="M-50,446 Q -25.0,439 0,446 T 50,446 T 100,446 T 150,446 T 200,446 T 250,446 T 300,446 T 350,446 T 400,446 T 450,446 T 500,446 T 550,446 T 600,446 T 650,446 T 700,446 T 750,446 T 800,446 T 850,446 T 900,446 L 880,520 L -50,520 Z"/>
+    <path class="w2" d="M-50,462 Q -25.0,456 0,462 T 50,462 T 100,462 T 150,462 T 200,462 T 250,462 T 300,462 T 350,462 T 400,462 T 450,462 T 500,462 T 550,462 T 600,462 T 650,462 T 700,462 T 750,462 T 800,462 T 850,462 T 900,462 L 880,520 L -50,520 Z"/>
+    <path class="w3" d="M-50,480 Q -25.0,475 0,480 T 50,480 T 100,480 T 150,480 T 200,480 T 250,480 T 300,480 T 350,480 T 400,480 T 450,480 T 500,480 T 550,480 T 600,480 T 650,480 T 700,480 T 750,480 T 800,480 T 850,480 T 900,480 L 880,520 L -50,520 Z"/>
+    <path class="crest" d="M20,452 q8,-5 16,0 M238,456 q8,-5 16,0 M318,470 q7,-4 14,0 M512,453 q8,-5 16,0 M602,468 q7,-4 14,0 M742,455 q8,-5 16,0 M372,488 q6,-4 12,0 M650,490 q6,-4 12,0 M92,486 q6,-4 12,0"/>
+  </g>
+  <g transform="translate(112,446) rotate(-3)" filter="url(#rough)">
+    <path class="hull" d="M-40,-8 L40,-8 Q32,8 0,10 Q-32,8 -40,-8 Z"/>
+    <path class="line" d="M-30,-2 Q0,4 30,-2"/>
+    <path class="line" d="M0,-8 V-66" stroke-width="2"/>
+    <path class="sail" d="M4,-62 Q 28,-36 32,-12 L4,-12 Z"/>
+    <path class="sail" d="M-4,-58 L-28,-12 L-4,-12 Z"/>
+    <path class="line" d="M0,-66 L-42,-9"/>
+    <rect x="-15" y="-50" width="7" height="6" fill="#b3342b"/>
+    <path d="M-26,-37 l7,0 -3.5,6 z" fill="#d9a632"/>
+    <rect x="-37" y="-24" width="7" height="6" fill="#2b4a7e"/>
+    <path d="M0,-66 l12,3 -12,3 z" fill="#b3342b"/>
+  </g>
+  <rect class="vig" x="0" y="0" width="820" height="500"/>
+  <rect class="grain" x="0" y="0" width="820" height="500" filter="url(#grain)"/>
+</svg>
