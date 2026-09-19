@@ -2,6 +2,8 @@
 
 Merge to main. Your Mac is running it seconds later. No open port, no tunnel, no secret to rotate.
 
+<p align="center"><img alt="Merge it. Pierless takes it from there: it deploys instantly, fixes stuck deploys and dropped daemons on its own, reinstalls only what changed, and stays quiet unless something is red. No pier, no port: it drops anchor itself" src="assets/readme/hero.svg" width="900"></p>
+
 ![inbound ports](https://img.shields.io/badge/inbound%20ports-0-brightgreen) ![secrets to rotate](https://img.shields.io/badge/secrets%20to%20rotate-0-blueviolet) ![runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-ff69b4) ![platform](https://img.shields.io/badge/platform-macOS%20%C2%B7%20launchd-blue) ![shellcheck](https://img.shields.io/badge/shellcheck-clean-brightgreen) ![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FoficiallyAkshay%2Fpierless%2Fbadges%2Fbadges%2Fcoverage.json) ![license](https://img.shields.io/badge/license-MIT-orange)
 
 pierless turns a GitHub self-hosted runner into a deploy-only agent for one Mac: the Mac that runs your agents, daemons, loops, and dashboards.

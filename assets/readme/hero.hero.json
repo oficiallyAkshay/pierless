@@ -1,0 +1,22 @@
+{
+  "kind": "fan",
+  "style": "chart",
+  "headline": "Merge it. Pierless takes it from there.",
+  "subhead": "four things happen, all on their own",
+  "title": "Merge it. Pierless takes it from there: it deploys instantly, fixes stuck deploys and dropped daemons on its own, reinstalls only what changed, and stays quiet unless something is red. No pier, no port: it drops anchor itself",
+  "source": { "label": "Merge pull request", "note": "the only thing you do", "icon": "git-merge" },
+  "hub": { "label": "Pierless", "icon": "anchor" },
+  "handled": [
+    { "label": "Deploys instantly", "sub": "the moment you merge", "icon": "download", "theme": "navy" },
+    { "label": "Fixes itself", "sub": "stuck deploys, dropped daemons", "icon": "refresh", "theme": "sea" },
+    { "label": "Only what changed", "sub": "never a full reinstall", "icon": "target", "theme": "ochre" },
+    { "label": "Stays quiet", "sub": "alerts only when something's red", "icon": "bell", "theme": "plum" }
+  ],
+  "aside": "no pier, no port. it drops anchor itself.",
+  "scene": {
+    "background": "parchment chart with rhumb lines, compass rose, depth soundings, grain, vignette",
+    "sea": "three etched wave bands with ink crests",
+    "boat": "inked sailboat flying a hoist of signal flags",
+    "sky": "gulls; moon and stars in dark mode"
+  }
+}
