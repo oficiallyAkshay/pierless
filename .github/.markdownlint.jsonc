@@ -1,6 +1,6 @@
 // .github/.markdownlint.jsonc — the markdownlint rules the
 // markdownlint-cli2 hook in .pre-commit-config.yaml runs with. Every
-// rule is on except the three below. JSONC, not JSON, so each exception
+// rule is on except the ones below. JSONC, not JSON, so each exception
 // can carry the reason it exists.
 {
   "default": true,
@@ -16,5 +16,10 @@
 
   // .github/PULL_REQUEST_TEMPLATE.md opens at `##` on purpose: GitHub
   // pastes it into a PR body, where an `#` would outrank the title.
-  "MD041": false
+  "MD041": false,
+
+  // README.md's hero is a centred image, which markdown cannot centre;
+  // `<p align="center"><img>` is the one way GitHub renders it. Any other
+  // element is still refused.
+  "MD033": { "allowed_elements": ["p", "img"] }
 }
