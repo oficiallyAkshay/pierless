@@ -67,6 +67,8 @@ The installer needs `gh` signed in once. It mints a runner registration token, u
 
 By default a failed deploy runs nothing. `on_failure` names the alert, `on_recovery` the all-clear. By default finished worktrees are pruned; `prune_worktrees: false` keeps them. By default dependencies reinstall only where a manifest changed; `install: none` turns that off.
 
+<p align="center"><a href="https://www.bestpractices.dev/projects/14725"><img alt="OpenSSF Best Practices, passing" src="https://www.bestpractices.dev/projects/14725/badge"></a></p>
+
 ## Badges
 
 Click a badge for its recipe; Both is the recommended shape.
