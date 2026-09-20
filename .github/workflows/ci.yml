@@ -170,16 +170,30 @@ jobs:
           work="$(mktemp -d)"
           cp badges/coverage.svg badges/coverage.json "$work"
           cd "$work"
-          mkdir badges
-          mv coverage.svg coverage.json badges/
           git init -q -b badges
           git config user.email "actions@github.com"
           git config user.name "github-actions[bot]"
-          git add badges/coverage.svg badges/coverage.json
+          # Keep whatever else lives on the branch. This job is no longer its
+          # only writer: clonometer publishes the lifetime clone and view
+          # ledger there on its own schedule, and the orphan rebuild this
+          # step used to do deleted that ledger on every push to main — the
+          # numbers came back as a 404 and the badges rendered empty. Fetch
+          # first, restore what is there, then overwrite only our own two
+          # files. A branch that does not exist yet leaves the checkout
+          # empty, which is the first-publish case.
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          if git -c http.extraheader="AUTHORIZATION: basic ${auth}" \
+               fetch -q --depth 1 "https://github.com/${REPO}.git" badges 2>/dev/null; then
+            git checkout -q FETCH_HEAD -- . || true
+          fi
+          mkdir -p badges
+          mv coverage.svg coverage.json badges/
+          git add -A badges
           git commit -q -m "coverage badge: ${total}%"
           # Same header-injection shape actions/checkout uses so the
-          # token never appears in the remote URL or in any log line.
-          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          # token never appears in the remote URL or in any log line. The
+          # push stays forced because this commit is built on the branch's
+          # own tip when one exists, so nothing of anyone else's is behind it.
           git -c http.extraheader="AUTHORIZATION: basic ${auth}" \
             push --force "https://github.com/${REPO}.git" HEAD:badges
 
