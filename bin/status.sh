@@ -60,7 +60,18 @@ fi
 echo "== last refusal =="
 DIAG_DIR="${RUNNER_DIR}/_diag"
 if [ -d "${DIAG_DIR}" ]; then
-  NEWEST_DIAG="$(find "${DIAG_DIR}" -maxdepth 1 -name 'Runner_*.log' -type f -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -n 1 || true)"
+  # A bash glob, not find | xargs: GNU xargs (the default on Linux) still
+  # runs its command once on empty input unless told not to (BSD xargs on
+  # macOS does not), which listed the current directory instead of
+  # reporting no matches when _diag had no Runner_*.log files at all. The
+  # Runner_*.log names are zero-padded UTC timestamps, so the lexically
+  # last glob match (bash always expands a glob in sorted order) is the
+  # newest one; an unmatched glob is skipped by the -f check below rather
+  # than treated as a literal filename.
+  NEWEST_DIAG=""
+  for _diag_candidate in "${DIAG_DIR}"/Runner_*.log; do
+    [ -f "${_diag_candidate}" ] && NEWEST_DIAG="${_diag_candidate}"
+  done
   if [ -n "${NEWEST_DIAG}" ]; then
     grep 'pierless gate: refused' "${NEWEST_DIAG}" | tail -n 1 || echo "no refusal lines in ${NEWEST_DIAG}"
   else

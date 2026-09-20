@@ -30,13 +30,11 @@ cut        # base
 date       # base
 dirname    # base
 env        # base
-find       # base
 grep       # base
 head       # base
 hostname   # base
 id         # base
 launchctl  # base
-ls         # base
 mkdir      # base
 mktemp     # base
 mv         # base
@@ -51,6 +49,5 @@ tail       # base
 tar        # base
 tr         # base
 uname      # base
-xargs      # base
 
 ./config.sh  # bundled
