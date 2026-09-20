@@ -20,7 +20,7 @@ Every check runs in parallel on each PR; a typical run finishes in under two min
 
 | Check | Runs on | Blocks merge |
 | --- | --- | --- |
-| checks: the pre-commit hooks (shellcheck at `--severity=error`, markdown lint), then gitleaks over the whole history and actionlint over every workflow file | Linux | yes |
+| checks: the pre-commit hooks (shellcheck at `--severity=error`, markdown lint, zizmor over every workflow file), then pinact verifies every `uses:` is pinned, then gitleaks over the whole history and actionlint over every workflow file | Linux | yes |
 | tests: gate, deploy script, installer dry-run, workflow shape; the macOS leg also renders the launchd definition and lints it | Linux and macOS | yes |
 | coverage: bash line tracing over the test run, changed lines at or above 90 percent, badge published on main | Linux | yes |
 | `ci` gate: passes only when every check above reports success | Linux | yes, and it is the only check merge asks for |
@@ -30,6 +30,8 @@ The checks above feed the gate, which fails on any one of them that is red, skip
 The hooks in that first row are the ones your own commit runs, read from `.pre-commit-config.yaml`: there is no second list to keep in step. actionlint stays a CI-only step: ci.yml downloads one pinned, checksum-verified binary for it, which is cheaper than a Go build in every contributor's hook cache.
 
 The macOS leg is the only one that touches launchd, and only in dry-run. Nothing in CI registers a runner or talks to a real repo.
+
+Two workflows sit outside the gate. `readme-check.yml` runs readmerlin against the README and every docs page on every push, pull request and a weekly schedule; it runs the count-source commands in `readmerlin.json` too, so a stale badge fails the same way a broken link does. `dependabot-auto-merge.yml` arms `gh pr merge --auto --rebase` on every Dependabot pull request; the `ci` gate above still has to pass before GitHub merges anything, so this only removes the wait for a human to click merge on a routine action bump.
 
 ## Test plan a change must satisfy
 

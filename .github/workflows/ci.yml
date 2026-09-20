@@ -1,7 +1,9 @@
 # .github/workflows/ci.yml — three jobs in parallel behind one gate; see
 # CONTRIBUTING.md's "What CI runs" table. `checks` runs the pre-commit
-# hooks a contributor's commit runs, from the same .pre-commit-config.yaml,
-# then actionlint. `tests` runs the suite on Linux and macOS, and the
+# hooks a contributor's commit runs, from the same .pre-commit-config.yaml
+# (shellcheck, markdown lint, zizmor), then verifies every `uses:` is
+# pinned, then gitleaks over the whole history, then actionlint. `tests`
+# runs the suite on Linux and macOS, and the
 # macOS leg alone lints the rendered launchd plist. `coverage` traces the
 # same suite and pushes the badge on a merge to main. `ci` is the only
 # context branch protection asks for. Every action is pinned by full
@@ -59,6 +61,16 @@ jobs:
         # pipx ships on the runner image, so pre-commit needs no setup
         # action; its version is pinned above like every other tool.
         run: pipx run --spec "pre-commit==${PRE_COMMIT_VERSION}" pre-commit run --all-files --show-diff-on-failure
+      # pinact has no pre-commit hook of its own to pin to, so it runs as its
+      # own step: every `uses:` must be a full commit SHA, and that SHA must
+      # actually be the commit the trailing version comment names, never a
+      # hand-edited or stale one. fix: "false" only checks; it never rewrites
+      # a workflow file or pushes a commit.
+      - name: verify actions are pinned
+        uses: suzuki-shunsuke/pinact-action@896d595f299e71d65b9d28349d6956abe144390a # v3.0.0
+        with:
+          fix: "false"
+          verify: "true"
       - name: Download pinned gitleaks
         run: |
           set -euo pipefail
