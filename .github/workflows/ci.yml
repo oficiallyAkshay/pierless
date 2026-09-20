@@ -14,14 +14,15 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: read
+permissions: {}
 
+# A second push to the same PR supersedes the first, so cancel the run it
+# replaced (keyed by ref). A push to main keys on the commit instead, so
+# a rapid second push gets its own group rather than dropping the first
+# push's run: that run is the record of what landed, and cancelling it
+# would leave main's history with a gap no later run fills in.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  # A superseded PR push has nothing left to prove, but a main run is the
-  # record of what landed — cancelling one would leave main's history
-  # with a gap no later run fills in.
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -36,11 +37,14 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Every commit, so the secrets scan below reads the whole history.
           fetch-depth: 0
+          persist-credentials: false
       # Keyed on the config alone: the hook environments only ever change
       # when a rev in it changes.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -91,8 +95,12 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: bash tests/run.sh
       - name: Render and lint the launchd template
         # plutil is macOS-only, and so is everything the plist drives.
@@ -133,17 +141,24 @@ jobs:
           # Full history: the changed-lines bar on a PR diffs against
           # origin/<base_ref>, which needs that branch's history too.
           fetch-depth: 0
+          # The last step authenticates its own push with GH_TOKEN in a
+          # basic-auth header, so no persisted checkout credential is
+          # needed for that either.
+          persist-credentials: false
       - name: Run tests under bash's own tracing
         run: |
           set -euo pipefail
           mkdir -p coverage
           PIERLESS_TRACE_FILE="$PWD/coverage/trace.log" bash tests/run.sh
       - name: Coverage gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref || 'main' }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
             python3 scripts/ci/coverage-check.py --trace coverage/trace.log \
-              --base "origin/${{ github.base_ref || 'main' }}" --min-changed 90 --min-total 100
+              --base "origin/${BASE_REF}" --min-changed 90 --min-total 100
           else
             python3 scripts/ci/coverage-check.py --trace coverage/trace.log --min-total 100
           fi
@@ -208,6 +223,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions: {}
     steps:
       - name: Every job this gate needs succeeded
         env:
