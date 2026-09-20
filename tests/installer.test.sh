@@ -480,6 +480,22 @@ else
 fi
 assert_contains "$nonarm_real_out" "refused — this Mac is not arm64" "non-arm64 real run: refuses before touching anything"
 
+# --- arm64 platform: the match arm is a no-op, dry-run reports no refusal ---
+# CI's own runners are never arm64 (ubuntu-latest is x86_64; even
+# macos-latest's arm64 host would make this pass "by accident" and hide a
+# Linux-only gap), so this is stubbed explicitly rather than relying on
+# whatever the real host happens to be.
+stub_bin uname 'if [ "$1" = "-m" ]; then echo "arm64"; else /usr/bin/uname "$@"; fi'
+stub_gh_ok
+out="$(mktemp)"; err="$(mktemp)"
+bash "$INSTALLER" --repo owner/repo --runner-dir "$(new_tmpdir)/runner" --dry-run >"$out" 2>"$err"
+arm_dryrun_ec=$?
+arm_dryrun_out="$(cat "$out")$(cat "$err")"
+rm -f "$out" "$err"
+assert_exit 0 "$arm_dryrun_ec" "arm64 dry-run: exits 0"
+assert_contains "$arm_dryrun_out" "dry run complete — nothing created under" "arm64 dry-run: no platform refusal noted"
+assert_not_contains "$arm_dryrun_out" "would be refused" "arm64 dry-run: never claims this host would be refused"
+
 # --- dry-run: already-extracted and already-registered plan lines ---
 stub_gh_ok
 already_dir="$(new_tmpdir)/runner"
