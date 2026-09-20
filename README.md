@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/license-MIT-2f6f4e?logo=opensourceinitiative&logoColor=white"></a>
-  <a href="CONTRIBUTING.md#what-ci-runs"><img alt="coverage" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/badges/coverage.json"></a>
+  <a href="CONTRIBUTING.md#what-ci-runs"><img alt="coverage" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/coverage/coverage.json"></a>
   <a href="#security-and-limits"><img alt="inbound ports" src="https://img.shields.io/badge/inbound%20ports-0-brightgreen"></a>
   <a href="#security-and-limits"><img alt="secrets to rotate" src="https://img.shields.io/badge/secrets%20to%20rotate-0-blueviolet"></a>
   <a href="#security-and-limits"><img alt="runtime dependencies" src="https://img.shields.io/badge/runtime%20dependencies-0-ff69b4"></a>

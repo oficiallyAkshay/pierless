@@ -138,12 +138,12 @@ jobs:
     timeout-minutes: 15
     # Write access is needed only by the last step (Publish badge, itself
     # gated to push-to-main only) to push the generated svg/json to the
-    # orphan badges branch; every other step in this job only reads.
+    # dedicated coverage branch; every other step in this job only reads.
     permissions:
       contents: write
     # Scoped by ref so PR runs on different branches never share a group
     # (they still run in parallel) — this only serializes two main
-    # pushes racing to publish the same badges branch.
+    # pushes racing to publish the same coverage branch.
     concurrency:
       group: pierless-coverage-badge-${{ github.ref }}
       cancel-in-progress: false
@@ -187,42 +187,41 @@ jobs:
           t = d["total"]
           print(t, "green" if t >= 90 else ("yellow" if t >= 75 else "red"))
           ')"
-          mkdir -p badges
-          python3 scripts/ci/badge.py coverage "${total}%" "$color" > badges/coverage.svg
+          python3 scripts/ci/badge.py coverage "${total}%" "$color" > coverage.svg
           python3 -c "
           import json
           json.dump({'schemaVersion': 1, 'label': 'coverage', 'message': '${total}%', 'color': '${color}'},
-                     open('badges/coverage.json', 'w'))
+                     open('coverage.json', 'w'))
           "
           work="$(mktemp -d)"
-          cp badges/coverage.svg badges/coverage.json "$work"
+          mkdir -p "$work/new"
+          cp coverage.svg coverage.json "$work/new"
           cd "$work"
-          git init -q -b badges
+          git init -q -b coverage
           git config user.email "actions@github.com"
           git config user.name "github-actions[bot]"
-          # Keep whatever else lives on the branch. This job is no longer its
-          # only writer: clonometer publishes the lifetime clone and view
-          # ledger there on its own schedule, and the orphan rebuild this
-          # step used to do deleted that ledger on every push to main — the
-          # numbers came back as a 404 and the badges rendered empty. Fetch
-          # first, restore what is there, then overwrite only our own two
-          # files. A branch that does not exist yet leaves the checkout
-          # empty, which is the first-publish case.
+          # This branch exists only for the coverage badge — no other job
+          # or workflow writes here, unlike the clone/view ledger branch
+          # clonometer owns, which a shared writer's orphan rebuild wiped
+          # twice. Fetch the existing tip first so a later publish extends
+          # the branch instead of discarding it; a branch that does not
+          # exist yet leaves the checkout empty, which is the
+          # first-publish case.
           auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
           if git -c http.extraheader="AUTHORIZATION: basic ${auth}" \
-               fetch -q --depth 1 "https://github.com/${REPO}.git" badges 2>/dev/null; then
+               fetch -q --depth 1 "https://github.com/${REPO}.git" coverage 2>/dev/null; then
             git checkout -q FETCH_HEAD -- . || true
           fi
-          mkdir -p badges
-          mv coverage.svg coverage.json badges/
-          git add -A badges
+          cp new/coverage.svg new/coverage.json .
+          git add -A coverage.svg coverage.json
           git commit -q -m "coverage badge: ${total}%"
           # Same header-injection shape actions/checkout uses so the
           # token never appears in the remote URL or in any log line. The
           # push stays forced because this commit is built on the branch's
-          # own tip when one exists, so nothing of anyone else's is behind it.
+          # own tip when one exists, so nothing of anyone else's is behind
+          # it, and it only ever targets this dedicated coverage branch.
           git -c http.extraheader="AUTHORIZATION: basic ${auth}" \
-            push --force "https://github.com/${REPO}.git" HEAD:badges
+            push --force "https://github.com/${REPO}.git" HEAD:coverage
 
   # The single context branch protection requires. Every check above feeds
   # it, so the ruleset never has to be edited again when a job is added —
