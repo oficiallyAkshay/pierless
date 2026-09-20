@@ -14,6 +14,10 @@
 </p>
 
 <p align="center">
+  <a href="https://www.bestpractices.dev/projects/14725"><img alt="OpenSSF Best Practices, passing" src="https://www.bestpractices.dev/projects/14725/badge"></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/oficiallyAkshay/clonometer"><img alt="clones of this repository, last seven days and all time" src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/clones.json&query=$.badge&label=clones&logo=github&logoColor=white"></a>
   <a href="#badges"><img alt="views of this repository, last seven days and all time" src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/views.json&query=$.badge&label=views&logo=github&logoColor=white"></a>
 </p>
@@ -66,8 +70,6 @@ The installer needs `gh` signed in once. It mints a runner registration token, u
 - ❌ sends telemetry
 
 By default a failed deploy runs nothing. `on_failure` names the alert, `on_recovery` the all-clear. By default finished worktrees are pruned; `prune_worktrees: false` keeps them. By default dependencies reinstall only where a manifest changed; `install: none` turns that off.
-
-<p align="center"><a href="https://www.bestpractices.dev/projects/14725"><img alt="OpenSSF Best Practices, passing" src="https://www.bestpractices.dev/projects/14725/badge"></a></p>
 
 ## Badges
 
