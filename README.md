@@ -1,109 +1,93 @@
-# pierless
+<h1 align="center">⚓ pierless</h1>
 
-Merge to main. Your Mac is running it seconds later. No open port, no tunnel, no secret to rotate.
+<p align="center"><b>Merge to main. Your Mac is running it seconds later.</b></p>
 
 <p align="center"><img alt="Merge it. Pierless takes it from there: it deploys instantly, fixes stuck deploys and dropped daemons on its own, reinstalls only what changed, and stays quiet unless something is red. No pier, no port: it drops anchor itself" src="assets/readme/hero.svg" width="900"></p>
 
-![clones](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FoficiallyAkshay%2Fpierless%2Fbadges%2Fclones.json&query=%24.badge&label=clones&logo=github&logoColor=white) ![views](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FoficiallyAkshay%2Fpierless%2Fbadges%2Fviews.json&query=%24.badge&label=views&logo=github&logoColor=white) ![inbound ports](https://img.shields.io/badge/inbound%20ports-0-brightgreen) ![secrets to rotate](https://img.shields.io/badge/secrets%20to%20rotate-0-blueviolet) ![runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-0-ff69b4) ![platform](https://img.shields.io/badge/platform-macOS%20%C2%B7%20launchd-blue) ![shellcheck](https://img.shields.io/badge/shellcheck-clean-brightgreen) ![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FoficiallyAkshay%2Fpierless%2Fbadges%2Fbadges%2Fcoverage.json) ![license](https://img.shields.io/badge/license-MIT-orange)
+<p align="center">
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/license-MIT-2f6f4e?logo=opensourceinitiative&logoColor=white"></a>
+  <a href="CONTRIBUTING.md#what-ci-runs"><img alt="coverage" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/badges/coverage.json"></a>
+  <a href="#security-and-limits"><img alt="inbound ports" src="https://img.shields.io/badge/inbound%20ports-0-brightgreen"></a>
+  <a href="#security-and-limits"><img alt="secrets to rotate" src="https://img.shields.io/badge/secrets%20to%20rotate-0-blueviolet"></a>
+  <a href="#security-and-limits"><img alt="runtime dependencies" src="https://img.shields.io/badge/runtime%20dependencies-0-ff69b4"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/oficiallyAkshay/pierless"><img alt="OpenSSF Scorecard" src="https://api.scorecard.dev/projects/github.com/oficiallyAkshay/pierless/badge"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/oficiallyAkshay/clonometer"><img alt="clones of this repository, last seven days and all time" src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/clones.json&query=$.badge&label=clones&logo=github&logoColor=white"></a>
+  <a href="#badges"><img alt="views of this repository, last seven days and all time" src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/views.json&query=$.badge&label=views&logo=github&logoColor=white"></a>
+</p>
 
 pierless turns a GitHub self-hosted runner into a deploy-only agent for one Mac: the Mac that runs your agents, daemons, loops, and dashboards.
 
-Two things stay true at once. Merged PRs land on the box by themselves. Edits you make by hand on the box are never overwritten and never block a deploy.
+## Features
 
-## What it adds
+- 🚀 **Deploys in seconds.** Merge to main, and your Mac is running it before you have switched tabs.
+- 🖥️ **Built for your Mac.** One box, registered once, kept on the workflow and branch you named.
+- 🩹 **Heals itself.** A stranded branch or a dropped daemon is put right on the next run, no page needed.
+- 🔒 **Nothing listens.** No inbound port, no tunnel, no secret to rotate.
+- ✅ **Claims are proven.** Inbound ports, secrets to rotate and runtime tools are checked by a test on every run, not typed by hand.
 
-The runner and git move the bytes. pierless adds the rules:
+## Fit
 
-- **One door.** The gate refuses every job except one workflow on one branch. Fails closed. No network calls.
-- **Never force.** Diverged, fetch failed, cannot fast-forward: the run goes red and says why. No reset, ever.
-- **Park, never overwrite.** Uncommitted edits on the box go into a named stash, only when a pull is actually happening. If the pull fails, they come straight back.
-- **Self-heal.** A box stranded on a squash-merged branch is put back on main and deployed.
-- **Install only what moved.** Dependencies reinstall only where a manifest changed.
-- **Daemons ship with their code.** A new or changed launchd plist loads on the deploy that carries it. Rename it to `.disabled` and it unloads.
-- **Kick what launchd drops.** Coalesced file events lose a restart; pierless kicks the daemon you name.
-- **Prune finished worktrees.** Only when the PR merged, the tree is clean, and no session holds it.
-- **Alert on failure only.** Your command runs once on a red deploy, your recovery command once on the next green. Silence otherwise.
+Use it when:
 
-## Use it
+- Your Mac already runs a GitHub Actions self-hosted runner for a private repo.
+- You want a merge to reach it in seconds, without opening a port or keeping a deploy key.
+- A stuck deploy or a dropped daemon should heal itself, not page you.
 
-On the Mac, once:
+Look elsewhere when:
 
-```bash
-git clone https://github.com/oficiallyAkshay/pierless ~/.pierless/src
-~/.pierless/src/bin/pierless install --repo you/your-repo
-```
+- Your target is Linux or Windows: pierless is built on launchd, macOS only.
+- You deploy containers across a fleet of servers: [basecamp/kamal](https://github.com/basecamp/kamal) fits that shape.
+- You want the runner and the gate built for you, with nothing to script: pierless is the script.
 
-Registers the runner, runs it under launchd, and installs the gate outside every checkout so no branch can edit it. The other verbs: `status`, `dry-run`, `uninstall`.
+Install it by cloning this repo onto the Mac and running its install command, which registers the runner and puts the gate outside every checkout so no branch can edit it. Add `oficiallyAkshay/pierless@v1` to your own deploy workflow next; every option is documented in `examples/deploy.yml`.
 
-In your repo, `.github/workflows/deploy.yml` (every option in `examples/deploy.yml`):
+## How it compares
 
-```yaml
-on:
-  push: { branches: [main] }
-  schedule: [{ cron: "17 * * * *" }]
-concurrency: { group: deploy, cancel-in-progress: false }
-jobs:
-  deploy:
-    runs-on: [self-hosted, macOS, pierless]
-    steps:
-      - uses: oficiallyAkshay/pierless@v0
-        with:
-          repo: /Users/you/your-checkout
-```
+| | [oficiallyAkshay/pierless](https://github.com/oficiallyAkshay/pierless) | [basecamp/kamal](https://github.com/basecamp/kamal) | [actions/runner](https://github.com/actions/runner) |
+| --- | --- | --- | --- |
+| Installation | Shell | Gem | Binary |
+| Target | Your Mac | Any server | Any machine |
+| Container runtime | None | Docker | None |
+| Inbound port | None | SSH | None |
+| Self-heal | ✅ | ❌ | ❌ |
 
-Done.
+## Security and limits
 
-## How it sits
+The installer needs `gh` signed in once. It mints a runner registration token, used immediately and never written to disk. The deploy step uses only `GITHUB_TOKEN`. It already has one, granted to its own run.
 
-Nothing on the Mac listens. The runner asks GitHub for work; the gate decides whether it may run.
+- ❌ opens an inbound port
+- ❌ calls out before the gate decides whether a job may run
+- ❌ force-resets a diverged checkout
+- ❌ overwrites uncommitted edits it has not just stashed
+- ❌ writes the runner's registration token to disk
+- ❌ sends telemetry
 
-```mermaid
-flowchart LR
-  subgraph GH[GitHub]
-    PR[Pull request] -->|merge| M[main]
-    M -->|push event| Q[Actions job queue]
-  end
-  subgraph MAC[Your Mac]
-    R[Self-hosted runner<br/>launchd service] --> G{Gate<br/>one workflow, one branch}
-    G -->|refused| X[Job fails before any step]
-    G -->|allowed| D[Deploy script]
-    D --> C[(Repo checkout)]
-    D --> H[Hooks<br/>install deps · load daemons · kick]
-    H --> S[launchd daemons]
-  end
-  Q -.->|outbound long-poll<br/>no inbound port| R
-  D -->|only on failure| SL[Your alert command]
-```
+By default a failed deploy runs nothing. `on_failure` names the alert, `on_recovery` the all-clear. By default finished worktrees are pruned; `prune_worktrees: false` keeps them. By default dependencies reinstall only where a manifest changed; `install: none` turns that off.
 
+## Badges
 
-## One deploy
+Click a badge for its recipe; Both is the recommended shape.
 
-Every branch off the happy path ends red with its cause.
-
-```mermaid
-flowchart TD
-  A[Job assigned to the runner] --> B{Gate<br/>deploy workflow on main?}
-  B -- no --> B1[Refused. Red before any step]
-  B -- yes --> C[Fetch, prune gone branches]
-  C --> D{Checkout left on a<br/>squash-merged branch?}
-  D -- yes --> D1[Switch back to main]
-  D -- no --> E
-  D1 --> E{Uncommitted edits?}
-  E -- yes --> E1[Park under a named stash]
-  E -- no --> F
-  E1 --> F{Fast-forward possible?}
-  F -- no, diverged --> F1[Stop. Red with the cause]
-  F -- yes --> G[Fast-forward pull]
-  G --> H[Install deps where a manifest changed]
-  H --> I[Load new or changed daemons<br/>unload the ones renamed to disabled]
-  I --> J[Kick the daemon launchd would coalesce]
-  J --> K[Prune worktrees whose PR merged]
-  K --> L{Any hook failed?}
-  L -- yes --> L1[Red. Your alert command runs once]
-  L -- no --> M[Green. Your recovery command runs if a failure preceded it]
-```
-
-
-## License
-
-MIT
+<table width="100%">
+  <tr>
+    <th></th>
+    <th align="center">This week</th>
+    <th align="center">All time</th>
+    <th align="center">Both</th>
+  </tr>
+  <tr>
+    <th align="left">Clones</th>
+    <td align="center"><a href="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/clones.json&query=$.last7_short&label=clones&suffix=%20this%20week&logo=github&logoColor=white"><img alt="Clones, this week" src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/clones.json&query=$.last7_short&label=clones&suffix=%20this%20week&logo=github&logoColor=white"></a></td>
+    <td align="center"><a href="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/clones.json&query=$.total_short&label=clones&suffix=%20all-time&logo=github&logoColor=white"><img alt="Clones, all time" src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/clones.json&query=$.total_short&label=clones&suffix=%20all-time&logo=github&logoColor=white"></a></td>
+    <td align="center"><a href="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/clones.json&query=$.badge&label=clones&logo=github&logoColor=white"><img alt="Clones, this week and all time" src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/clones.json&query=$.badge&label=clones&logo=github&logoColor=white"></a></td>
+  </tr>
+  <tr>
+    <th align="left">Views</th>
+    <td align="center"><a href="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/views.json&query=$.last7_short&label=views&suffix=%20this%20week&logo=github&logoColor=white"><img alt="Views, this week" src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/views.json&query=$.last7_short&label=views&suffix=%20this%20week&logo=github&logoColor=white"></a></td>
+    <td align="center"><a href="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/views.json&query=$.total_short&label=views&suffix=%20all-time&logo=github&logoColor=white"><img alt="Views, all time" src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/views.json&query=$.total_short&label=views&suffix=%20all-time&logo=github&logoColor=white"></a></td>
+    <td align="center"><a href="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/views.json&query=$.badge&label=views&logo=github&logoColor=white"><img alt="Views, this week and all time" src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/oficiallyAkshay/pierless/badges/views.json&query=$.badge&label=views&logo=github&logoColor=white"></a></td>
+  </tr>
+</table>

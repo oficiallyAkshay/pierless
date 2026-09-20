@@ -10,16 +10,20 @@
   // of a thought and make every later edit a reflow.
   "MD013": false,
 
-  // README.md leaves a two-line gap after a mermaid diagram before the
-  // next heading; that gap is how the rendered page breathes.
+  // docs/architecture.md leaves a two-line gap after a mermaid diagram
+  // before the next heading; that gap is how the rendered page breathes.
   "MD012": false,
 
   // .github/PULL_REQUEST_TEMPLATE.md opens at `##` on purpose: GitHub
   // pastes it into a PR body, where an `#` would outrank the title.
   "MD041": false,
 
-  // README.md's hero is a centred image, which markdown cannot centre;
-  // `<p align="center"><img>` is the one way GitHub renders it. Any other
-  // element is still refused.
-  "MD033": { "allowed_elements": ["p", "img"] }
+  // README.md centres its title, tagline, hero image and badge rows, and
+  // lays out the Badges section as a table; markdown cannot centre or
+  // build a table with merged-looking headers on its own, so these are
+  // the elements readmerlin's shape actually emits. Any other element is
+  // still refused.
+  "MD033": {
+    "allowed_elements": ["p", "img", "h1", "b", "a", "table", "tr", "th", "td"]
+  }
 }

@@ -1,0 +1,7 @@
+{
+  "counts": {
+    "inbound ports": "python3 scripts/ci/claims.py --claim ports >/dev/null 2>&1 && echo 0",
+    "secrets to rotate": "python3 scripts/ci/claims.py --claim secrets >/dev/null 2>&1 && echo 0",
+    "runtime dependencies": "find . -maxdepth 3 -not -path './.git*' \\( -name 'package.json' -o -name 'requirements*.txt' -o -name 'Pipfile' -o -name 'pyproject.toml' -o -name 'Gemfile' -o -name 'go.mod' \\) | wc -l | tr -d ' '"
+  }
+}
