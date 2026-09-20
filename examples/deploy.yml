@@ -23,7 +23,7 @@ jobs:
   deploy:
     runs-on: [self-hosted, macOS, pierless]
     steps:
-      - uses: oficiallyAkshay/pierless@v0
+      - uses: oficiallyAkshay/pierless@v1
         with:
           repo: ${{ github.workspace }}           # path to the live checkout on this Mac
           install: ""                              # "" = npm install where package(-lock).json changed; "none" disables
