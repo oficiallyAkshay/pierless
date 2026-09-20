@@ -33,9 +33,7 @@ JOB="${GITHUB_JOB:-}"
 debug() { [ "${PIERLESS_DEBUG:-0}" = "1" ] && printf 'pierless gate: %s\n' "$1" >&2; return 0; }
 
 refuse() {
-  printf 'pierless gate: refused — %s (workflow_ref=%s repository=%s ref=%s event=%s job=%s)\n' \
-    "$1" "${WORKFLOW_REF:-unset}" "${REPOSITORY:-unset}" "${REF:-unset}" \
-    "${EVENT_NAME:-unset}" "${JOB:-unset}" >&2
+  printf 'pierless gate: refused — %s (workflow_ref=%s repository=%s ref=%s event=%s job=%s)\n' "$1" "${WORKFLOW_REF:-unset}" "${REPOSITORY:-unset}" "${REF:-unset}" "${EVENT_NAME:-unset}" "${JOB:-unset}" >&2
   exit 1
 }
 
@@ -57,7 +55,7 @@ debug "ref '${REF:-unset}' vs allowed '${ALLOWED_REF}'"
 debug "event_name '${EVENT_NAME:-unset}' vs push|schedule|workflow_dispatch"
 [ -n "${EVENT_NAME}" ] || refuse "GITHUB_EVENT_NAME is unset or empty"
 case "${EVENT_NAME}" in
-  push|schedule|workflow_dispatch) ;;
+  push|schedule|workflow_dispatch) : ;;
   *) refuse "event_name is not push, schedule, or workflow_dispatch" ;;
 esac
 

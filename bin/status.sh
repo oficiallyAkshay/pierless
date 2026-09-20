@@ -41,8 +41,7 @@ if [ -z "${REPO_SLUG}" ] && [ -f "${RUNNER_DIR}/.runner" ]; then
 fi
 if [ -n "${REPO_SLUG}" ]; then
   if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    gh api "repos/${REPO_SLUG}/actions/runners" --jq '.runners[] | "\(.name): \(.status) (busy=\(.busy))"' 2>/dev/null \
-      || echo "could not read runner status from GitHub for ${REPO_SLUG}"
+    gh api "repos/${REPO_SLUG}/actions/runners" --jq '.runners[] | "\(.name): \(.status) (busy=\(.busy))"' 2>/dev/null || echo "could not read runner status from GitHub for ${REPO_SLUG}"
   else
     echo "gh not authenticated — skipping GitHub-side status"
   fi
@@ -61,8 +60,7 @@ fi
 echo "== last refusal =="
 DIAG_DIR="${RUNNER_DIR}/_diag"
 if [ -d "${DIAG_DIR}" ]; then
-  NEWEST_DIAG="$(find "${DIAG_DIR}" -maxdepth 1 -name 'Runner_*.log' -type f -print0 2>/dev/null \
-    | xargs -0 ls -t 2>/dev/null | head -n 1 || true)"
+  NEWEST_DIAG="$(find "${DIAG_DIR}" -maxdepth 1 -name 'Runner_*.log' -type f -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -n 1 || true)"
   if [ -n "${NEWEST_DIAG}" ]; then
     grep 'pierless gate: refused' "${NEWEST_DIAG}" | tail -n 1 || echo "no refusal lines in ${NEWEST_DIAG}"
   else

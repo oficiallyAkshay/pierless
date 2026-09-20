@@ -111,10 +111,7 @@ fi
 write_output() {
   local deployed="$1" commits="$2"
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
-    {
-      echo "deployed=${deployed}"
-      echo "commits=${commits}"
-    } >> "${GITHUB_OUTPUT}"
+    printf 'deployed=%s\ncommits=%s\n' "${deployed}" "${commits}" >> "${GITHUB_OUTPUT}"
   fi
 }
 
@@ -143,8 +140,7 @@ run_install_hooks() {
   local pre="$1" changed="$2"
   local spec="${PIERLESS_INSTALL:-}"
   if [ -z "${spec}" ]; then
-    spec="package.json=npm install --no-audit --no-fund
-package-lock.json=npm install --no-audit --no-fund"
+    spec=$'package.json=npm install --no-audit --no-fund\npackage-lock.json=npm install --no-audit --no-fund'
   fi
   if [ "${spec}" = "none" ]; then
     debug "PIERLESS_INSTALL=none, skipping install hooks"
@@ -162,13 +158,13 @@ package-lock.json=npm install --no-audit --no-fund"
       [ -z "${f}" ] && continue
       bname="$(basename "${f}")"
       case "${bname}" in
-        ${glob}) ;;
+        ${glob}) : ;;
         *) continue ;;
       esac
       dir="$(dirname "${f}")"
       combos="${combos}${dir}"$'\t'"${command}"$'\n'
-    done <<< "${changed}"
-  done <<< "${spec}"
+    done <<< "${changed}"; :
+  done <<< "${spec}"; :
 
   [ -z "${combos}" ] && return
 
@@ -187,7 +183,7 @@ package-lock.json=npm install --no-audit --no-fund"
       log "hook: install FAILED in ${target}"
       HOOK_FAILED=1
     fi
-  done <<< "${seen_combo}"
+  done <<< "${seen_combo}"; :
 }
 
 # extract_plist_value PLIST KEY — prints the string value of KEY inside
@@ -207,9 +203,7 @@ extract_plist_value() {
     fi
   fi
   if [ -z "${val}" ]; then
-    val="$(grep -A1 "<key>${key}</key>" "${plist}" 2>/dev/null \
-      | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p' \
-      | head -n1)"
+    val="$(grep -A1 "<key>${key}</key>" "${plist}" 2>/dev/null | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p' | head -n1)"
   fi
   printf '%s' "${val}"
 }
@@ -239,8 +233,7 @@ run_service_hooks() {
   local dir_escaped
   dir_escaped=$(printf '%s' "${dir}" | sed 's/[.[\*^$/]/\\&/g')
   local plist_changes
-  plist_changes=$(git diff --name-only --no-renames "${pre}" HEAD 2>>"${LOG}" \
-    | grep -E "^${dir_escaped}/[^/]+\\.plist\$" || true)
+  plist_changes=$(git diff --name-only --no-renames "${pre}" HEAD 2>>"${LOG}" | grep -E "^${dir_escaped}/[^/]+\\.plist\$" || true)
   [ -z "${plist_changes}" ] && { debug "no plist changes under ${dir}"; return; }
 
   log "hook: plist changes: $(echo "${plist_changes}" | tr '\n' ' ')"
@@ -272,7 +265,7 @@ run_service_hooks() {
       launchctl bootout "gui/${uid}/${label}" >> "${LOG}" 2>&1 || true
       rm -f "${target_dir}/${fname}"
     fi
-  done <<< "${plist_changes}"
+  done <<< "${plist_changes}"; :
 }
 
 run_kick() {
@@ -335,7 +328,7 @@ prune_worktrees() {
         wt=""; br=""
         ;;
     esac
-  done < <(git -C "${REPO}" worktree list --porcelain)
+  done < <(git -C "${REPO}" worktree list --porcelain); :
   [ "${pruned}" -gt 0 ] || [ "${skipped}" -gt 0 ] && log "worktree cleanup: pruned=${pruned} skipped=${skipped}"
   return 0
 }
