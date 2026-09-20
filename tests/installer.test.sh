@@ -523,5 +523,131 @@ fi
 assert_contains "$INSTALL_STDOUT" "verify FAILED" "verify catches state never running: names the failure"
 assert_contains "$INSTALL_STDOUT" "does not show state = running" "verify catches state never running: names the specific check"
 
+# --- gate script missing next to install-runner.sh: refuses immediately ---
+# GATE_SCRIPT is derived from the running script's own directory
+# (SCRIPT_DIR), so copying just install-runner.sh out on its own — without
+# its sibling job-started-gate.sh — reproduces a broken/partial checkout.
+# The copy keeps a "bin/" path component (coverage-check.py's own coverable
+# set is keyed on that) so the coverage trace for this run still attributes
+# to the real bin/install-runner.sh line numbers.
+nogate_dir="$(new_tmpdir)/no-gate-copy/bin"
+mkdir -p "$nogate_dir"
+cp "$INSTALLER" "$nogate_dir/install-runner.sh"
+chmod +x "$nogate_dir/install-runner.sh"
+out="$(mktemp)"; err="$(mktemp)"
+bash "$nogate_dir/install-runner.sh" --repo owner/repo --dry-run >"$out" 2>"$err"
+nogate_ec=$?
+nogate_err="$(cat "$err")"
+rm -f "$out" "$err"
+if [ "$nogate_ec" -eq 0 ]; then
+  fail "gate script missing: exits non-zero (got 0)"
+else
+  pass "gate script missing: exits non-zero"
+fi
+assert_contains "$nogate_err" "expected gate script at" "gate script missing: clear line naming the problem"
+
+# --- verify: plist ACTIONS_RUNNER_HOOK_JOB_STARTED doesn't match HOOK_DEST ---
+stub_curl_fixture
+stub_tar_fixture
+stub_gh_registration_ok
+stub_launchctl_stateful
+stub_bin plutil '
+case "$1" in
+  -extract)
+    case "$2" in
+      EnvironmentVariables.ACTIONS_RUNNER_HOOK_JOB_STARTED) printf "%s" "/some/wrong/hook/path" ;;
+      *) : ;;
+    esac
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+'
+home_g="$(new_tmpdir)"
+runner_dir_g="$home_g/runner"
+launchctl_state_g="$(new_tmpdir)/launchctl-state"
+run_install_real HOME="$home_g" LAUNCHCTL_STATE_FILE="$launchctl_state_g" \
+  PIERLESS_TEST_RUNNER_VERSION="6.0.0-fixture" PIERLESS_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
+  PIERLESS_TEST_SKIP_PLATFORM_CHECK=1 \
+  -- --repo owner/repo --runner-dir "$runner_dir_g"
+if [ "$INSTALL_EXIT" -eq 0 ]; then
+  fail "verify catches hook path mismatch: exits non-zero (got 0)"
+else
+  pass "verify catches hook path mismatch: exits non-zero"
+fi
+assert_contains "$INSTALL_STDOUT" "verify FAILED" "verify catches hook path mismatch: names the failure"
+assert_contains "$INSTALL_STDOUT" "plist ACTIONS_RUNNER_HOOK_JOB_STARTED is '/some/wrong/hook/path'" "verify catches hook path mismatch: names the specific check"
+
+# --- verify: installed hook sha256 does not match the repo's gate script ---
+# cp is overridden ONLY for the hook-copy destination (everything else
+# passes through to the real /bin/cp), so the installed hook ends up with
+# different content than bin/job-started-gate.sh — a genuine sha256
+# mismatch, not a faked one.
+stub_curl_fixture
+stub_tar_fixture
+stub_gh_registration_ok
+stub_launchctl_stateful
+stub_plutil_fixture
+real_cp="$(command -v cp)"
+cp_override_dir="$(new_tmpdir)/cp-override"
+mkdir -p "$cp_override_dir"
+cat > "$cp_override_dir/cp" <<EOF
+#!/usr/bin/env bash
+case "\$2" in
+  */hooks/job-started-gate.sh) printf 'corrupted hook content for sha256-mismatch test\n' > "\$2"; exit 0 ;;
+  *) exec "$real_cp" "\$@" ;;
+esac
+EOF
+chmod +x "$cp_override_dir/cp"
+home_h="$(new_tmpdir)"
+runner_dir_h="$home_h/runner"
+launchctl_state_h="$(new_tmpdir)/launchctl-state"
+run_install_real HOME="$home_h" LAUNCHCTL_STATE_FILE="$launchctl_state_h" \
+  PATH="$cp_override_dir:$PATH" \
+  PIERLESS_TEST_RUNNER_VERSION="7.0.0-fixture" PIERLESS_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
+  PIERLESS_TEST_SKIP_PLATFORM_CHECK=1 \
+  -- --repo owner/repo --runner-dir "$runner_dir_h"
+if [ "$INSTALL_EXIT" -eq 0 ]; then
+  fail "verify catches hook sha256 mismatch: exits non-zero (got 0)"
+else
+  pass "verify catches hook sha256 mismatch: exits non-zero"
+fi
+assert_contains "$INSTALL_STDOUT" "installed hook sha256" "verify catches hook sha256 mismatch: names the specific check"
+assert_contains "$INSTALL_STDOUT" "does not match repo copy" "verify catches hook sha256 mismatch: names the mismatch"
+
+# --- verify: .env does not carry the ACTIONS_RUNNER_HOOK_JOB_STARTED line ---
+# mv is overridden ONLY for the .env destination (everything else passes
+# through to the real /bin/mv), so the installed .env ends up missing the
+# line the verify step checks for — a genuine gap, not a faked one.
+stub_curl_fixture
+stub_tar_fixture
+stub_gh_registration_ok
+stub_launchctl_stateful
+stub_plutil_fixture
+real_mv="$(command -v mv)"
+mv_override_dir="$(new_tmpdir)/mv-override"
+mkdir -p "$mv_override_dir"
+cat > "$mv_override_dir/mv" <<EOF
+#!/usr/bin/env bash
+case "\$2" in
+  */.env) printf 'SOME_OTHER_VAR=x\n' > "\$2"; rm -f "\$1"; exit 0 ;;
+  *) exec "$real_mv" "\$@" ;;
+esac
+EOF
+chmod +x "$mv_override_dir/mv"
+home_i="$(new_tmpdir)"
+runner_dir_i="$home_i/runner"
+launchctl_state_i="$(new_tmpdir)/launchctl-state"
+run_install_real HOME="$home_i" LAUNCHCTL_STATE_FILE="$launchctl_state_i" \
+  PATH="$mv_override_dir:$PATH" \
+  PIERLESS_TEST_RUNNER_VERSION="8.0.0-fixture" PIERLESS_TEST_RUNNER_SHA256="$FIXTURE_SHA256" \
+  PIERLESS_TEST_SKIP_PLATFORM_CHECK=1 \
+  -- --repo owner/repo --runner-dir "$runner_dir_i"
+if [ "$INSTALL_EXIT" -eq 0 ]; then
+  fail "verify catches missing .env line: exits non-zero (got 0)"
+else
+  pass "verify catches missing .env line: exits non-zero"
+fi
+assert_contains "$INSTALL_STDOUT" "does not carry ACTIONS_RUNNER_HOOK_JOB_STARTED" "verify catches missing .env line: names the specific check"
 
 test_summary_and_exit

@@ -161,6 +161,12 @@ printf 'pierless gate: allowed x\n' > "$clean_diag_dir/_diag/Runner_20250101-000
 run_status -- --runner-dir "$clean_diag_dir"
 assert_contains "$STATUS_STDOUT" "no refusal lines in" "last refusal: no matching lines says so"
 
+# --- last refusal: diag dir exists but has no Runner_*.log files at all ---
+no_logs_diag_dir="$(new_tmpdir)/runner"
+mkdir -p "$no_logs_diag_dir/_diag"
+run_status -- --runner-dir "$no_logs_diag_dir"
+assert_contains "$STATUS_STDOUT" "no Runner_*.log files in" "last refusal: no matching log files says so"
+
 # --- last refusal: no diag dir at all ---
 no_diag_dir="$(new_tmpdir)/runner"
 run_status -- --runner-dir "$no_diag_dir"
