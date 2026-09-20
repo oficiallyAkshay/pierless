@@ -7,7 +7,7 @@ The current `main` branch and the latest tag. Nothing older gets a fix.
 ## Reporting a vulnerability
 
 Use GitHub's private vulnerability reporting on this repository:
-https://github.com/oficiallyAkshay/pierless/security/advisories/new
+<https://github.com/oficiallyAkshay/pierless/security/advisories/new>
 
 Never open a public issue for a vulnerability. Expect an acknowledgement
 within seven days.
