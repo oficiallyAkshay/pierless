@@ -121,7 +121,7 @@ ALLOWED_REF="refs/heads/${BRANCH}"
 PLATFORM_REFUSAL_REASON=""
 if [ "${PIERLESS_TEST_SKIP_PLATFORM_CHECK:-0}" != "1" ]; then
   case "$(uname -m)" in
-    arm64) ;;
+    arm64) : ;;
     *)
       PLATFORM_REFUSAL_REASON="this Mac is not arm64 (uname -m = $(uname -m)); Intel Macs need a different runner asset (actions-runner-osx-x64), not the one pinned here"
       if [ "${DRY_RUN}" -eq 0 ]; then
@@ -232,13 +232,7 @@ else
   if [ -f "${ENV_FILE}" ]; then
     grep -vE '^(ACTIONS_RUNNER_HOOK_JOB_STARTED|PIERLESS_ALLOWED_WORKFLOW_REF|PIERLESS_ALLOWED_REPOSITORY|PIERLESS_ALLOWED_REF|PIERLESS_ALLOWED_JOB)=' "${ENV_FILE}" > "${TMP_ENV}" || true
   fi
-  {
-    printf 'ACTIONS_RUNNER_HOOK_JOB_STARTED=%s\n' "${HOOK_DEST}"
-    printf 'PIERLESS_ALLOWED_WORKFLOW_REF=%s\n' "${ALLOWED_WORKFLOW_REF}"
-    printf 'PIERLESS_ALLOWED_REPOSITORY=%s\n' "${REPO_SLUG}"
-    printf 'PIERLESS_ALLOWED_REF=%s\n' "${ALLOWED_REF}"
-    printf 'PIERLESS_ALLOWED_JOB=%s\n' "${JOB}"
-  } >> "${TMP_ENV}"
+  printf 'ACTIONS_RUNNER_HOOK_JOB_STARTED=%s\nPIERLESS_ALLOWED_WORKFLOW_REF=%s\nPIERLESS_ALLOWED_REPOSITORY=%s\nPIERLESS_ALLOWED_REF=%s\nPIERLESS_ALLOWED_JOB=%s\n' "${HOOK_DEST}" "${ALLOWED_WORKFLOW_REF}" "${REPO_SLUG}" "${ALLOWED_REF}" "${JOB}" >> "${TMP_ENV}"
   mv "${TMP_ENV}" "${ENV_FILE}"
   log "hook installed at ${HOOK_DEST}; ${ENV_FILE} updated"
 fi
@@ -259,18 +253,7 @@ if [ "${DRY_RUN}" -eq 1 ]; then
 fi
 
 mkdir -p "$(dirname "${INSTALLED_PLIST}")"
-sed \
-  -e "s|@@LABEL@@|${LABEL}|g" \
-  -e "s|@@RUNNER_DIR@@|${RUNNER_DIR}|g" \
-  -e "s|@@HOOK@@|${HOOK_DEST}|g" \
-  -e "s|@@ALLOWED_WORKFLOW_REF@@|${ALLOWED_WORKFLOW_REF}|g" \
-  -e "s|@@ALLOWED_REPOSITORY@@|${REPO_SLUG}|g" \
-  -e "s|@@ALLOWED_REF@@|${ALLOWED_REF}|g" \
-  -e "s|@@ALLOWED_JOB@@|${JOB}|g" \
-  -e "s|@@LOG@@|${LOG_PATH}|g" \
-  -e "s|@@PATH@@|${BAKED_PATH}|g" \
-  -e "s|@@HOME@@|${HOME}|g" \
-  "${TEMPLATE}" > "${INSTALLED_PLIST}"
+sed -e "s|@@LABEL@@|${LABEL}|g" -e "s|@@RUNNER_DIR@@|${RUNNER_DIR}|g" -e "s|@@HOOK@@|${HOOK_DEST}|g" -e "s|@@ALLOWED_WORKFLOW_REF@@|${ALLOWED_WORKFLOW_REF}|g" -e "s|@@ALLOWED_REPOSITORY@@|${REPO_SLUG}|g" -e "s|@@ALLOWED_REF@@|${ALLOWED_REF}|g" -e "s|@@ALLOWED_JOB@@|${JOB}|g" -e "s|@@LOG@@|${LOG_PATH}|g" -e "s|@@PATH@@|${BAKED_PATH}|g" -e "s|@@HOME@@|${HOME}|g" "${TEMPLATE}" > "${INSTALLED_PLIST}"
 log "rendered plist to ${INSTALLED_PLIST}"
 
 if launchctl print "gui/$(id -u)/${LABEL}" >/dev/null 2>&1; then
