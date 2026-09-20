@@ -14,8 +14,9 @@
 # runs. Counting any of them would put a ceiling below 100% on files that
 # are fully exercised.
 #
-# Exits 1 only when --min-changed is given, at least one changed line is
-# coverable, and its coverage is below the threshold.
+# Exits 1 when --min-changed is given, at least one changed line is
+# coverable, and its coverage is below the threshold; or when --min-total
+# is given and total coverage is below that threshold.
 import argparse
 import glob
 import json
@@ -221,6 +222,7 @@ def main():
     p.add_argument("--base", help="ref to diff against for changed-line coverage; omit to skip that bar")
     p.add_argument("--diff-file", help="unified diff to use instead of running git (for tests)")
     p.add_argument("--min-changed", type=float, help="fail if changed-line coverage drops below this percent")
+    p.add_argument("--min-total", type=float, help="fail if total line coverage drops below this percent")
     p.add_argument(
         "--list-uncovered", action="store_true",
         help="print file:line for each uncovered changed line (needs --base or --diff-file); "
@@ -261,7 +263,11 @@ def main():
         for entry in uncovered_lines(coverable, executed, lines_by_file):
             print(entry)
 
-    return 1 if (args.min_changed is not None and changed_total > 0 and changed_pct < args.min_changed) else 0
+    if args.min_changed is not None and changed_total > 0 and changed_pct < args.min_changed:
+        return 1
+    if args.min_total is not None and total_pct < args.min_total:
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

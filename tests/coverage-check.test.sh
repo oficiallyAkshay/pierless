@@ -103,6 +103,33 @@ assert_contains "$(cat "$dir/coverage/summary.json")" '"changed": null' "coverag
 help_out="$(python3 "$SCRIPT" --help 2>&1)"
 assert_contains "$help_out" "usage" "coverage: --help prints usage"
 
+# --- --min-total: fails/exits 1 below the threshold, passes at/above it ---
+out="$(run_check --min-total 60)"
+ec=$?
+assert_contains "$out" "total=50.0%" "min-total: total is still 50.0% (5/10 lines traced)"
+assert_exit 1 "$ec" "min-total: exits 1 when total coverage is below --min-total"
+
+out="$(run_check --min-total 50)"
+ec=$?
+assert_exit 0 "$ec" "min-total: exits 0 when total coverage exactly meets --min-total"
+
+out="$(run_check --min-total 40)"
+ec=$?
+assert_exit 0 "$ec" "min-total: exits 0 when total coverage is above --min-total"
+
+out="$(run_check)"
+ec=$?
+assert_exit 0 "$ec" "min-total: no --min-total given never fails the run on total coverage alone"
+
+# --min-changed and --min-total are independent gates: both apply together.
+out="$(run_check --diff-file "$dir/diff-pass.txt" --min-changed 90 --min-total 60)"
+ec=$?
+assert_exit 1 "$ec" "min-total: still fails on total even when --min-changed passes"
+
+out="$(run_check --diff-file "$dir/diff-fail.txt" --min-changed 90 --min-total 40)"
+ec=$?
+assert_exit 1 "$ec" "min-total: still fails on --min-changed even when total passes"
+
 # --- end-to-end: a real traced run of one small test file, through the
 # real tests/run.sh + scripts/ci/trace.sh, no fixture trace file ---
 e2e_dir="$(new_tmpdir)"
