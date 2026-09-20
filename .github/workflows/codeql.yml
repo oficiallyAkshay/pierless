@@ -1,0 +1,54 @@
+# CodeQL scans the Python sources — the pierless PyPI package and the CI
+# helper scripts — and the repository's own GitHub Actions workflows for
+# known vulnerability patterns. The shell scripts that make up most of
+# this repository are not covered: CodeQL has no shell analyser, so
+# shellcheck in .pre-commit-config.yaml remains their static analysis.
+# Results land in the Security tab rather than blocking a merge, so a
+# finding is triaged, not a gate.
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, off the clonometer workflow's daily schedule (17 3 * * *)
+    # and the Wednesday scorecard run (38 5 * * 3), so none of them
+    # compete for the same runner minute.
+    - cron: "24 4 * * 1"
+
+permissions: {}
+
+# A second push to a pull request supersedes the first, so cancel the run it
+# replaced. The group keys on the commit rather than the ref for every other
+# trigger, so a push to main and the weekly schedule never drop each other's
+# run by sharing a group.
+concurrency:
+  group: codeql-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        with:
+          languages: ${{ matrix.language }}
+
+      - uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        with:
+          category: /language:${{ matrix.language }}
