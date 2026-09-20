@@ -21,6 +21,9 @@
 # generates and run as shell rather than as data.
 name: pierless
 description: Fast-forward a self-hosted Mac's checkout from origin/main and run its deploy hooks.
+branding:
+  icon: anchor
+  color: blue
 inputs:
   repo:
     description: Path to the git checkout to deploy.
