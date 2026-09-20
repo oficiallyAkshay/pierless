@@ -447,6 +447,30 @@ fi
 new_plist_calls_content="$(cat "$new_plist_calls")"
 assert_contains "$new_plist_calls_content" "bootstrap" "new plist: launchctl bootstrap recorded"
 
+# --- services hook: launchctl bootstrap itself fails -> HOOK_FAILED, exit 2 ---
+new_fixture
+(
+  cd "$DEV" || exit 1
+  mkdir -p services
+  echo '<plist bootstrapfail v1/>' > services/ai.pierless.bootstrapfail.plist
+  git add services/ai.pierless.bootstrapfail.plist
+  git commit -q -m "add bootstrapfail plist"
+  git push -q origin main
+)
+stub_bin launchctl '
+case "$1" in
+  bootstrap) exit 1 ;;
+  *) exit 0 ;;
+esac
+'
+bootstrapfail_home="$(new_tmpdir)"
+run_deploy env HOME="$bootstrapfail_home" PIERLESS_SERVICES_DIR="services"
+assert_exit 2 "$DEPLOY_EXIT" "bootstrap fails: exits 2"
+assert_contains "$DEPLOY_LOG" "hook: launchctl bootstrap FAILED for ai.pierless.bootstrapfail" "bootstrap fails: log names the failed label"
+bootstrapfail_head="$(git -C "$HOST" rev-parse HEAD)"
+bootstrapfail_origin_head="$(git -C "$ORIGIN" rev-parse refs/heads/main)"
+assert_eq "$bootstrapfail_origin_head" "$bootstrapfail_head" "bootstrap fails: pull still happened despite the hook failure"
+
 # --- services hook: a plist renamed to .plist.disabled is unloaded ---
 new_fixture
 (
@@ -521,6 +545,19 @@ assert_contains "$kick_calls_content" "kickstart -k gui/" "kick: launchctl kicks
 assert_contains "$kick_calls_content" "daemon.one" "kick: daemon.one kicked"
 assert_contains "$kick_calls_content" "daemon.two" "kick: daemon.two kicked"
 
+# --- PIERLESS_KICK: kickstart itself fails -> HOOK_FAILED, exit 2 ---
+new_fixture
+push_commit_from_dev "kickfail commit"
+stub_bin launchctl '
+case "$1" in
+  kickstart) exit 1 ;;
+  *) exit 0 ;;
+esac
+'
+run_deploy env PIERLESS_KICK="daemon.fail"
+assert_exit 2 "$DEPLOY_EXIT" "kick fails: exits 2"
+assert_contains "$DEPLOY_LOG" "hook: kickstart FAILED for daemon.fail" "kick fails: log names the failed label"
+
 # --- PIERLESS_INSTALL=none skips every install hook ---
 new_fixture
 (
@@ -552,6 +589,31 @@ if [ -f "$HOST/sub/ran-custom-hook.txt" ]; then
 else
   fail "custom glob: command ran in the changed file's directory (marker not found)"
 fi
+
+# --- install hook: the changed file's directory no longer exists on disk --
+# (its only file was deleted in a later commit, so git removed the now-empty
+# dir on checkout) -> skip logged, deploy still exits 0.
+new_fixture
+(
+  cd "$DEV" || exit 1
+  mkdir -p vanishing
+  echo "x" > vanishing/marker.txt
+  git add vanishing/marker.txt
+  git commit -q -m "add vanishing marker"
+  git push -q origin main
+)
+run_deploy env PIERLESS_INSTALL="marker.txt=true"
+assert_exit 0 "$DEPLOY_EXIT" "vanishing dir setup: first pull exits 0"
+(
+  cd "$DEV" || exit 1
+  git rm -q vanishing/marker.txt
+  git commit -q -m "remove vanishing marker"
+  git push -q origin main
+)
+run_deploy env PIERLESS_INSTALL="marker.txt=true"
+assert_exit 0 "$DEPLOY_EXIT" "vanishing dir: exits 0"
+assert_contains "$DEPLOY_LOG" "is not a directory" "vanishing dir: log names the skip"
+assert_contains "$DEPLOY_LOG" "hook: skip install" "vanishing dir: log calls it a skip, not a failure"
 
 # --- PIERLESS_DEBUG=1 prints debug lines; unset prints none ---
 new_fixture
@@ -622,6 +684,30 @@ if git -C "$HOST" rev-parse --verify --quiet refs/heads/feature-open >/dev/null 
   pass "worktree prune: open local branch kept"
 else
   fail "worktree prune: open local branch kept (was deleted)"
+fi
+
+# --- worktree prune: merged+clean, but `git worktree remove` itself fails ---
+new_fixture
+push_commit_from_dev "worktree-prunefail commit"
+wt_prunefail="$(new_tmpdir)/wt-prunefail"
+git -C "$HOST" worktree add -q -b feature-prunefail "$wt_prunefail" >/dev/null 2>&1
+stub_bin gh 'echo "99"; exit 0'
+prunefail_git="$(fake_git_failing '*worktree remove*')"
+run_deploy env PATH="$prunefail_git:$PATH"
+assert_exit 0 "$DEPLOY_EXIT" "worktree prune, remove fails: exits 0 (non-fatal, just skipped)"
+# The path git reports may be canonicalized (e.g. /private/var vs /var on
+# macOS), so match on the branch name rather than the exact worktree path.
+assert_contains "$DEPLOY_LOG" "worktree PRUNE FAILED" "worktree prune, remove fails: log names the failure"
+assert_contains "$DEPLOY_LOG" "(feature-prunefail)" "worktree prune, remove fails: log names the failed branch"
+if [ -d "$wt_prunefail" ]; then
+  pass "worktree prune, remove fails: worktree left in place"
+else
+  fail "worktree prune, remove fails: worktree left in place (was removed)"
+fi
+if git -C "$HOST" rev-parse --verify --quiet refs/heads/feature-prunefail >/dev/null 2>&1; then
+  pass "worktree prune, remove fails: local branch kept (remove failed before the branch delete)"
+else
+  fail "worktree prune, remove fails: local branch kept (was deleted)"
 fi
 
 # --- PIERLESS_BRANCH tracks a non-main branch end to end ---

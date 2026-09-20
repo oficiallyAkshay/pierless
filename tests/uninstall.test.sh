@@ -226,4 +226,17 @@ rm -f "$out"
 assert_exit 0 "$help_ec" "--help: exits 0"
 assert_contains "$help_out" "usage: uninstall-runner.sh" "--help: prints usage"
 
+# --- unknown argument ---
+out="$(mktemp)"; err="$(mktemp)"
+bash "$UNINSTALLER" --repo owner/repo --bogus-flag >"$out" 2>"$err"
+unknown_ec=$?
+unknown_out="$(cat "$out")$(cat "$err")"
+rm -f "$out" "$err"
+if [ "$unknown_ec" -eq 0 ]; then
+  fail "unknown flag: exits non-zero (got 0)"
+else
+  pass "unknown flag: exits non-zero"
+fi
+assert_contains "$unknown_out" "unknown argument" "unknown flag: clear line naming the problem"
+
 test_summary_and_exit
