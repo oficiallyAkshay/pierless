@@ -143,9 +143,9 @@ jobs:
           set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             python3 scripts/ci/coverage-check.py --trace coverage/trace.log \
-              --base "origin/${{ github.base_ref || 'main' }}" --min-changed 90
+              --base "origin/${{ github.base_ref || 'main' }}" --min-changed 90 --min-total 100
           else
-            python3 scripts/ci/coverage-check.py --trace coverage/trace.log
+            python3 scripts/ci/coverage-check.py --trace coverage/trace.log --min-total 100
           fi
       - name: Publish badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
