@@ -2,6 +2,7 @@
 
 One line per merged change, newest first. No version numbers here.
 
+- The npm and PyPI packages are dropped before either was ever published: the action is installed from this repo only, and the floating tag a consumer's `uses:` follows is `v1`.
 - The same scripts ship as the npm and PyPI packages pierless, published from a version tag by trusted publishing; the CLI gains a deploy verb.
 - The same pre-commit hooks run locally and in CI from one config: secrets, shellcheck, markdown lint. CI also scans the whole history for secrets and lints the workflows.
 - The runtime-tools, inbound-ports and secrets-to-rotate claims are proven by a test on every run and their badges are written from that proof, not typed by hand.
