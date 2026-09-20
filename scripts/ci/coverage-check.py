@@ -8,11 +8,13 @@
 #
 # A line is "coverable" when bash could report executing it: not blank,
 # not a comment, not a bare structural token on its own (`{`, `}`, `fi`,
-# `done`, `esac`, `else`, `then`, `do`, `;;`, `)`), not a case arm's
-# `verb)` pattern inside a `case ... in` block, and not inside a heredoc
-# body — that last one is data handed to a command, not lines the shell
-# runs. Counting any of them would put a ceiling below 100% on files that
-# are fully exercised.
+# `done`, `esac`, `else`, `then`, `do`, `;;`, `)`), not a bare function
+# head (`name() {`, nothing after the brace) — bash's real xtrace traces
+# the call site and the body, never the definition line itself — not a
+# case arm's `verb)` pattern inside a `case ... in` block, and not inside
+# a heredoc body — that last one is data handed to a command, not lines
+# the shell runs. Counting any of them would put a ceiling below 100% on
+# files that are fully exercised.
 #
 # Exits 1 when --min-changed is given, at least one changed line is
 # coverable, and its coverage is below the threshold; or when --min-total
@@ -25,13 +27,32 @@ import re
 import subprocess
 import sys
 
-TRACE_RE = re.compile(r"^\++trace:(.+):(\d+):")
+# The path group is non-greedy: PS4 always writes "+trace:<path>:<lineno>:",
+# and a greedy (.+) backtracks to the LAST ":<digits>:" in the line instead
+# of the first — the traced command's own text (e.g. a stash message with a
+# "2026-09-20T01:20:22" timestamp) can contain its own colon-digit-colon
+# run, which a greedy match happily mistakes for the line number, dropping
+# that one entry from the executed set under a garbage path. The first
+# ":<digits>:" after "trace:" is always the real one; nothing before it in
+# an absolute path or BASH_SOURCE value is ever "<digits>:".
+TRACE_RE = re.compile(r"^\++trace:(.+?):(\d+):")
 STRUCTURAL_TOKENS = {"{", "}", "fi", "done", "esac", "else", "then", "do", ";;", ")"}
 # The delimiter word after an unquoted `<<` or `<<-`: `EOF`, `'EOF'`,
 # `"EOF"`. It is only tried at a `<<` that heredoc_terminator has already
 # found outside quotes, comments and arithmetic, and not part of `<<<`.
 HEREDOC_WORD_RE = re.compile(r"(-?)[ \t]*\\?([\"']?)([A-Za-z_][A-Za-z0-9_.-]*)\2")
 CASE_PATTERN_RE = re.compile(r"^[^()]+\)$")
+# A bare function-definition head, with nothing after the opening brace on
+# the same line (a one-liner like `f() { :; }` still has a real command on
+# it and stays coverable). Under bash's real xtrace (BASH_XTRACEFD/PS4,
+# used for bash >= 4.1 — every CI runner) this exact line is never traced:
+# only a call site and the commands inside the body are. It IS traced
+# under the DEBUG-trap fallback trace.sh uses for bash 3.2 (macOS's
+# default /bin/bash), which made this look coverable in a local run and
+# hid the gap until a real CI run (the only authoritative one) proved
+# every one of these lines permanently uncovered no matter what called
+# the function.
+FUNCTION_DEF_RE = re.compile(r"^(?:function[ \t]+)?[A-Za-z_][A-Za-z0-9_.-]*[ \t]*\(\)[ \t]*\{$")
 # `case` as a command: at the start of the line or after `;`, `&&`, `||`
 # or `$(` — never inside a comment or an echoed string.
 CASE_OPEN_RE = re.compile(r"(^|;|&&|\|\||\$\()\s*case\s.*\sin(\s*$|\s+#)")
@@ -51,6 +72,8 @@ def canon_bin_path(path, repo_root):
 def is_coverable(line, at_pattern=False):
     text = line.strip()
     if not text or text.startswith("#") or text in STRUCTURAL_TOKENS:
+        return False
+    if FUNCTION_DEF_RE.match(text):
         return False
     # A case arm's pattern is not a command either: bash traces the
     # commands inside the arm and never the `verb)` line above them, so
