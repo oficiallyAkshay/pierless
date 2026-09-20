@@ -1,6 +1,16 @@
+# Actions are pinned to a commit sha, which no scanner can bump on its own,
+# so a version bump arrives here as a pull request that CI has to pass like
+# any other change.
 version: 2
 updates:
-  - package-ecosystem: github-actions
-    directory: /
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
-      interval: weekly
+      interval: "weekly"
+    # A week to let a bad release surface before it reaches this repository.
+    cooldown:
+      default-days: 7
+    # One pull request a week for every action bump together, not one each.
+    groups:
+      actions:
+        patterns: ["*"]
