@@ -2,12 +2,14 @@
 
 pierless is a few hundred lines of shell and one workflow file. Keeping it that small is the point. The bar for a change: it makes a deploy safer, or the tool simpler.
 
+An agent reads `AGENTS.md` first for the short version of this file. The system and deploy-flow diagrams live in `docs/architecture.md`.
+
 ## The runbook for a change
 
 1. **Branch** from `main`. Name it for the outcome, not the file.
 2. **Say what changes for the person running it** in one sentence before you write code. If you cannot, the change is not ready.
 3. **Write the test first**, in `tests/`. Tests spawn the real script with a temp repo and stubbed `launchctl`/`gh`; they never reimplement a script's logic. A gate change gets a refuse case and an allow case.
-4. **Run the local checks**: `make hooks` once per clone installs the pre-commit hooks, then `make check` runs those same hooks, actionlint and the tests, and `make coverage` adds coverage — the commands CI runs, from the same config.
+4. **Run the local checks**: `make hooks` once per clone installs the pre-commit hooks, then `make check` runs those same hooks, actionlint and the tests, and `make coverage` adds coverage: the commands CI runs, from the same config.
 5. **Open the PR** with the template filled in: what changes for the operator, what does not change, how to undo it.
 6. **CI must be green** on every check before merge. Nothing is merged with a check skipped.
 7. **No release labels, no version bumps in PRs.** Releases are cut separately; a PR never carries release metadata.
@@ -18,14 +20,14 @@ Every check runs in parallel on each PR; a typical run finishes in under two min
 
 | Check | Runs on | Blocks merge |
 | --- | --- | --- |
-| checks: the pre-commit hooks — shellcheck at `--severity=error`, markdown lint — then gitleaks over the whole history and actionlint over every workflow file | Linux | yes |
+| checks: the pre-commit hooks (shellcheck at `--severity=error`, markdown lint), then gitleaks over the whole history and actionlint over every workflow file | Linux | yes |
 | tests: gate, deploy script, installer dry-run, workflow shape; the macOS leg also renders the launchd definition and lints it | Linux and macOS | yes |
 | coverage: bash line tracing over the test run, changed lines at or above 90 percent, badge published on main | Linux | yes |
 | `ci` gate: passes only when every check above reports success | Linux | yes, and it is the only check merge asks for |
 
 The checks above feed the gate, which fails on any one of them that is red, skipped or cancelled. That is why the branch rule names one context and not the whole list: a check added later is covered the moment it is wired into the gate's `needs:`, and `tests/workflow.test.sh` fails if one is left out.
 
-The hooks in that first row are the ones your own commit runs, read from `.pre-commit-config.yaml` — there is no second list to keep in step. actionlint stays a CI-only step: ci.yml downloads one pinned, checksum-verified binary for it, which is cheaper than a Go build in every contributor's hook cache.
+The hooks in that first row are the ones your own commit runs, read from `.pre-commit-config.yaml`: there is no second list to keep in step. actionlint stays a CI-only step: ci.yml downloads one pinned, checksum-verified binary for it, which is cheaper than a Go build in every contributor's hook cache.
 
 The macOS leg is the only one that touches launchd, and only in dry-run. Nothing in CI registers a runner or talks to a real repo.
 
@@ -52,11 +54,11 @@ Open an issue with the failing step's output from the GitHub run and the output 
 
 ## Releasing
 
-Releases are cut from a tag, not from a PR. First merge a PR that sets `PIERLESS_VERSION` in `action.yml` to the version you are about to release (a later change adds that line to the deploy step's `env`); `scripts/release/check-pin.sh` refuses the release when that value is missing or names a different version, so the composite action can never point at code the tag did not publish. Then push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+pierless is not a package. There is no npm or PyPI publish step: the action is installed straight from this repo, and a consumer's `uses: oficiallyAkshay/pierless@v1` follows a floating major tag, not a registry.
 
-`.github/workflows/release.yml` takes it from there. It checks the pin, runs the whole suite, copies `bin/` and `templates/` into both package trees with `scripts/release/stage.sh`, stamps the version into `package.json` and `pyproject.toml`, publishes `pierless` to npm and to PyPI, cuts the GitHub release with the CHANGELOG lines added since the previous version tag, and only then moves the floating `v0` tag onto the new commit. Both registries are reached by trusted publishing, which means an OIDC token minted for that workflow file and its `release` environment: nothing long-lived is stored in this repo, and there is no token to rotate.
+Releases are cut from a tag, not from a PR, and only the owner pushes one: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 
-The owner does the manual half once, before the first tag. npm has no pending-publisher flow, so the first version must be published by hand: `npm login`, then `npm publish` from a staged `packages/npm`. After that, on npmjs.com, add a trusted publisher to the package for this repository, workflow `release.yml`, environment `release`. On PyPI the same pair is registered up front as a pending publisher for the name `pierless`, with the same workflow file and environment, and the first tag then claims the name. Both the workflow filename and the environment name are part of what the registries trust, so renaming either one means updating the publisher entry on both sites.
+`.github/workflows/release.yml` takes it from there: it runs the whole suite, cuts the GitHub release with the CHANGELOG lines added since the previous version tag, and only then moves the floating `v1` tag onto the new commit. Moving `v1` last means a tag that failed its own tests never becomes what every consumer's workflow pulls next.
 
 ## License
 
