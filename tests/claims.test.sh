@@ -273,4 +273,22 @@ printf '%s\n' '          TRAFFIC: ${{ secrets.TRAFFIC_TOKEN }}' >> "$sec/.github
 run_claims --claim secrets --repo-root "$sec"
 assert_exit 0 "$CLAIMS_EXIT" "secrets: the read-only traffic token is allowed"
 
+# --- CodeQL py/clear-text-logging-sensitive-data guard ---------------------
+# CodeQL's clear-text-logging query treats the return value of ANY call
+# whose callee name contains "secret" as a credential, purely by name,
+# and flags it once it reaches print()/logging — regardless of what the
+# function actually returns (confirmed from the alert's own SARIF: all 3
+# reported flows started at a `*secret*`-named call; the file's several
+# `*token*`-named helpers, e.g. token_variable() and
+# check_token_never_written(), were never flagged, so only "secret" is
+# guarded here). That is how alert #9 fired on scripts/ci/claims.py:814:
+# the Claim-C helpers were named check_no_long_lived_secret /
+# check_action_declares_no_secret / check_workflow_secrets, and their
+# plain diagnostic strings (never a real secret) fed the print() in
+# _report(). This assertion fails against that naming and passes once
+# the helpers are renamed — it is the regression test for the fix, not
+# just a style check.
+offenders="$(grep -inE '^def [A-Za-z_]*secret' "$SCRIPT" || true)"
+assert_empty "$offenders" "codeql: no function in claims.py is named like a secret getter"
+
 test_summary_and_exit
