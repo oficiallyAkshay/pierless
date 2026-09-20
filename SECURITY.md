@@ -17,8 +17,6 @@ within seven days.
 pierless runs a self-hosted GitHub Actions runner and a deploy gate on
 one Mac. The only secrets it ever touches are the runner registration
 token, used once at install time and never stored, and the
-`GITHUB_TOKEN` the deploy workflow already has. The npm and PyPI
-releases are published by OIDC trusted publishing, so no long-lived
-registry token is stored in this repo or on the runner. The gate itself
+`GITHUB_TOKEN` the deploy workflow already has. The gate itself
 makes no network calls and runs no external command beyond bash
 builtins.

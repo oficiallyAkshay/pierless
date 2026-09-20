@@ -1,5 +1,4 @@
-# CodeQL scans the Python sources — the pierless PyPI package and the CI
-# helper scripts — and the repository's own GitHub Actions workflows for
+# CodeQL scans the CI helper scripts under scripts/ci and the repository's own GitHub Actions workflows for
 # known vulnerability patterns. The shell scripts that make up most of
 # this repository are not covered: CodeQL has no shell analyser, so
 # shellcheck in .pre-commit-config.yaml remains their static analysis.
