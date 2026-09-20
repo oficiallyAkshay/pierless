@@ -227,4 +227,71 @@ assert_contains "$look_out" "looks.sh:12" "coverage: a command substitution's cl
 assert_not_contains "$look_out" "looks.sh:16" "coverage: a hyphenated heredoc word opens a body that is not coverable"
 assert_contains "$look_out" "looks.sh:18" "coverage: the line after a hyphenated heredoc's terminator is coverable"
 
+# --- a traced command's own text can look like another ":<lineno>:" ------
+# PS4 always writes "+trace:<path>:<lineno>:" with the real line number
+# right after the path, but the path group used to be greedy: a traced
+# command whose printed form contains its own colon-digit-colon run (an
+# ISO timestamp, an IP:port, a ratio) let a greedy match backtrack past
+# the real line number to the LAST such run in the line instead of the
+# first, misparsing the entry into a garbage path/line pair that never
+# matches anything coverable — silently dropping that execution from the
+# covered set. Line 2 here is traced with a command whose own text
+# contains "01:20:22", shaped exactly like the deploy.sh stash-message
+# bug this regression covers (PR: TRACE_RE's path group made non-greedy).
+ts_dir="$(new_tmpdir)"
+mkdir -p "$ts_dir/bin" "$ts_dir/coverage"
+cat > "$ts_dir/bin/tsbug.sh" <<'EOF'
+#!/usr/bin/env bash
+git stash push -m "pierless park 2026-09-20T01:20:22+0000"
+echo done
+EOF
+cat > "$ts_dir/coverage/trace.log" <<EOF
++trace:$ts_dir/bin/tsbug.sh:2:git stash push -m 'pierless park 2026-09-20T01:20:22+0000'
++trace:$ts_dir/bin/tsbug.sh:3:echo done
+EOF
+ts_out="$(cd "$ts_dir" && python3 "$SCRIPT" --trace coverage/trace.log --list-uncovered)"
+assert_contains "$ts_out" "total=100.0%" "coverage: a timestamp inside the traced command text does not eat the real line number"
+assert_not_contains "$ts_out" "tsbug.sh:" "coverage: nothing is reported uncovered once the line number parses correctly"
+
+# --- a bare function-definition line is not coverable, but a one-liner --
+# --- function body with a real command on the same line still is -------
+# Real bash xtrace (bash >= 4.1's BASH_XTRACEFD/PS4, what every CI runner
+# uses) never traces a function's own "name() {" line — only the call
+# site and the commands inside the body. A one-liner like `bar() { :; }`
+# does have a real command after the brace, so it stays coverable.
+fndef_dir="$(new_tmpdir)"
+mkdir -p "$fndef_dir/bin" "$fndef_dir/coverage"
+cat > "$fndef_dir/bin/fndef.sh" <<'EOF'
+#!/usr/bin/env bash
+foo() {
+  echo "in foo"
+}
+bar() { :; }
+foo
+bar
+EOF
+# Traced exactly the way real bash xtrace would: the call sites (6, 7),
+# foo's body (3), and bar's one-liner body command (5) — never foo's own
+# definition line (2).
+cat > "$fndef_dir/coverage/trace.log" <<EOF
++trace:$fndef_dir/bin/fndef.sh:6:foo
++trace:$fndef_dir/bin/fndef.sh:3:echo 'in foo'
++trace:$fndef_dir/bin/fndef.sh:7:bar
++trace:$fndef_dir/bin/fndef.sh:5::
+EOF
+fndef_out="$(cd "$fndef_dir" && python3 "$SCRIPT" --trace coverage/trace.log --list-uncovered)"
+assert_contains "$fndef_out" "total=100.0%" "coverage: a called function scores 100% even though its own def line is never traced"
+assert_not_contains "$fndef_out" "fndef.sh:" "coverage: neither def line is reported uncovered"
+
+# Now drop bar's one-liner body trace: its line has a real command (the
+# `:` after the brace), so — unlike foo's bare def line — it must still be
+# reported uncovered when nothing traces it.
+cat > "$fndef_dir/coverage/trace.log" <<EOF
++trace:$fndef_dir/bin/fndef.sh:6:foo
++trace:$fndef_dir/bin/fndef.sh:3:echo 'in foo'
++trace:$fndef_dir/bin/fndef.sh:7:bar
+EOF
+fndef_out2="$(cd "$fndef_dir" && python3 "$SCRIPT" --trace coverage/trace.log --list-uncovered)"
+assert_contains "$fndef_out2" "fndef.sh:5" "coverage: a one-liner function body's own command is still coverable"
+
 test_summary_and_exit
