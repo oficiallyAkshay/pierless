@@ -1025,6 +1025,57 @@ assert_contains "$DEPLOY_LOG" "up to date, nothing new to pull — hooks never f
 assert_contains "$DEPLOY_LOG" "hooks: resuming from ${uptodate_fail_pre_sha}" "up-to-date resume, hook fails: log names the resume point"
 assert_contains "$DEPLOY_LOG" "EXIT 2: a hook failed" "up-to-date resume, hook fails: log names the exit-2 reason"
 assert_eq "false" "$(gh_output_value deployed)" "up-to-date resume, hook fails: deployed=false (nothing was pulled)"
+assert_eq "$uptodate_fail_pre_sha" "$(cat "$uptodate_fail_marker" 2>/dev/null)" "up-to-date resume, hook fails: marker keeps its old value"
+# The hook passes on the next run: the marker advances and the run reports a deploy.
+run_deploy env PIERLESS_INSTALL="none" PIERLESS_STATE_DIR="$uptodate_fail_state_dir"
+assert_exit 0 "$DEPLOY_EXIT" "up-to-date resume, hook then passes: exits 0"
+assert_eq "$(git -C "$HOST" rev-parse HEAD)" "$(cat "$uptodate_fail_marker" 2>/dev/null)" "up-to-date resume, hook then passes: marker advances to HEAD"
+assert_eq "true" "$(gh_output_value deployed)" "up-to-date resume, hook then passes: deployed=true so on_recovery can fire"
+
+# --- a pull whose hook fails is retried by every later run until it passes
+new_fixture
+retry_pre_sha="$(git -C "$HOST" rev-parse HEAD)"
+(
+  cd "$DEV" || exit 1
+  echo '{"name":"fixture","v":3}' > package.json
+  git add package.json
+  git commit -q -m "bump package.json for the retry case"
+  git push -q origin main
+)
+retry_state_dir="$(new_tmpdir)/state"
+run_deploy env PIERLESS_INSTALL="package.json=false" PIERLESS_STATE_DIR="$retry_state_dir"
+assert_exit 2 "$DEPLOY_EXIT" "failed hook retried: first run exits 2"
+retry_marker="$retry_state_dir/last-hooked-sha"
+assert_eq "$retry_pre_sha" "$(cat "$retry_marker" 2>/dev/null)" "failed hook retried: marker stays at the pre-pull SHA"
+run_deploy env PIERLESS_INSTALL="package.json=false" PIERLESS_STATE_DIR="$retry_state_dir"
+assert_exit 2 "$DEPLOY_EXIT" "failed hook retried: second run exits 2 again"
+assert_contains "$DEPLOY_LOG" "hooks: resuming from ${retry_pre_sha}" "failed hook retried: second run resumes from the old marker"
+assert_contains "$DEPLOY_LOG" "FAILED" "failed hook retried: second run runs the hook again"
+assert_not_contains "$DEPLOY_LOG" "up to date, nothing to deploy" "failed hook retried: second run does not claim up to date"
+assert_eq "$retry_pre_sha" "$(cat "$retry_marker" 2>/dev/null)" "failed hook retried: marker still at the old value"
+run_deploy env PIERLESS_INSTALL="none" PIERLESS_STATE_DIR="$retry_state_dir"
+assert_exit 0 "$DEPLOY_EXIT" "failed hook retried: run with a passing hook exits 0"
+assert_eq "$(git -C "$HOST" rev-parse HEAD)" "$(cat "$retry_marker" 2>/dev/null)" "failed hook retried: marker advances once the hook passes"
+
+# --- a pull that fails its hook while an older marker exists keeps that marker
+new_fixture
+older_c0="$(git -C "$HOST" rev-parse HEAD)"
+push_commit_from_dev "older-marker first commit"
+run_deploy env
+older_state_dir="$DEPLOY_STATE_DIR"
+older_marker="$older_state_dir/last-hooked-sha"
+printf '%s\n' "$older_c0" > "$older_marker"
+(
+  cd "$DEV" || exit 1
+  git pull -q origin main
+  echo '{"name":"fixture","v":4}' > package.json
+  git add package.json
+  git commit -q -m "bump package.json for the older-marker case"
+  git push -q origin main
+)
+run_deploy env PIERLESS_INSTALL="package.json=false" PIERLESS_STATE_DIR="$older_state_dir"
+assert_exit 2 "$DEPLOY_EXIT" "failed pull hook, older marker: exits 2"
+assert_eq "$older_c0" "$(cat "$older_marker" 2>/dev/null)" "failed pull hook, older marker: marker keeps its old value"
 
 # --- a further pull resumes hooks from an even-older stale marker -------
 new_fixture

@@ -66,7 +66,9 @@
 # match current HEAD — even on a run that pulls nothing new — hooks run
 # again for <marker>..HEAD instead of being skipped, so a crash between a
 # fast-forward and its hooks finishing is caught up next run rather than
-# silently skipped forever.
+# silently skipped forever. A failed hook leaves the marker where it was (a
+# first failure with no marker pins the pre-pull SHA), so every later run
+# retries and exits 2 until the hooks pass.
 
 set -uo pipefail
 
@@ -553,13 +555,14 @@ if [ "${BEHIND}" = "0" ] && [ "${AHEAD}" = "0" ]; then
   run_install_hooks "${RESUME_PRE}" "${CHANGED}"
   run_service_hooks "${RESUME_PRE}"
   prune_worktrees
-  write_marker "${CURRENT_SHA}"
   if [ "${HOOK_FAILED}" -eq 1 ]; then
     log "EXIT 2: a hook failed — see FAILED lines above (every remaining hook and the prune still ran)"
     write_output false 0
     exit 2
   fi
-  write_output false 0
+  write_marker "${CURRENT_SHA}"
+  # The resumed hooks finished: report a deploy so on_recovery can fire.
+  write_output true 0
   exit 0
 fi
 
@@ -612,7 +615,13 @@ if git merge --ff-only "origin/${BRANCH}" >> "${LOG}" 2>&1; then
   run_service_hooks "${HOOK_RANGE_PRE}"
   run_kick
   prune_worktrees
-  write_marker "${NEW_HEAD}"
+  if [ "${HOOK_FAILED}" -eq 0 ]; then
+    write_marker "${NEW_HEAD}"
+  elif [ -z "${LAST_HOOKED_SHA}" ]; then
+    # First failure with no marker yet: pin the pre-pull SHA so the next run
+    # resumes these hooks instead of reporting up to date.
+    write_marker "${HOOK_RANGE_PRE}"
+  fi
 
   if [ "${PARKED_COUNT}" -gt 0 ]; then
     names_joined="$(printf '%s' "${PARKED_FILES}" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')"
