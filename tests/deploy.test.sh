@@ -170,6 +170,16 @@ assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "one commit: log says PULLED 
 assert_eq "true" "$(gh_output_value deployed)" "one commit: deployed=true"
 assert_eq "1" "$(gh_output_value commits)" "one commit: commits=1"
 
+# --- a pull logs the SHA it left and the SHA it reached ---
+new_fixture
+from_sha="$(git -C "$HOST" rev-parse HEAD)"
+push_commit_from_dev "sha trail commit"
+run_deploy env
+to_sha="$(git -C "$HOST" rev-parse HEAD)"
+assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s) PIERLESS_FROM_SHA=${from_sha} PIERLESS_TO_SHA=${to_sha}" "sha trail: PULLED line carries both SHAs"
+assert_eq "$from_sha" "$(gh_output_value from_sha)" "sha trail: from_sha output is the SHA left"
+assert_eq "$to_sha" "$(gh_output_value to_sha)" "sha trail: to_sha output is the SHA reached"
+
 # --- dirty tracked file is parked, not re-applied, pull still happens ---
 new_fixture
 push_commit_from_dev "third commit"
