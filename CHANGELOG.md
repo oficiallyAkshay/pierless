@@ -2,12 +2,14 @@
 
 One line per merged change, newest first. No version numbers here.
 
+- A pulled deploy logs the commit it left and the commit it reached, and the architecture doc says how to roll back.
+- A dry run changes nothing and prints one plan line per step.
+- The action's state directory defaults to the real home folder, and a deploy leaves the checkout clean.
+- The action carries Marketplace branding (an icon and a colour) in action.yml.
 - A deploy whose hook failed is retried by every later run until the hook passes: the hook marker moves only when no hook failed, and on_recovery fires on the run that passes.
 - The npm and PyPI packages are dropped before either was ever published: the action is installed from this repo only, and the floating tag a consumer's `uses:` follows is `v1`.
-- The same scripts ship as the npm and PyPI packages pierless, published from a version tag by trusted publishing; the CLI gains a deploy verb.
 - The same pre-commit hooks run locally and in CI from one config: secrets, shellcheck, markdown lint. CI also scans the whole history for secrets and lints the workflows.
 - The runtime-tools, inbound-ports and secrets-to-rotate claims are proven by a test on every run and their badges are written from that proof, not typed by hand.
-- A push to main writes four public counters (clones over 14 days, npm and PyPI downloads over 30 days, and their total) as badge data; nothing runs on a user's machine to report anything.
 - The project is pierless, formerly gangplank: the command, every PIERLESS_ variable, the state dir ~/.pierless, the runner label and the launchd label pierless.runner change with it; an existing runner is uninstalled with the old copy and installed again with this one.
 - The coverage badge reads the published number through the badge service (the old link pointed one folder too high and never rendered), and the zero-is-good badges carry a colour each instead of one grey.
 - A plist whose log path plutil cannot read gets its log folder from the fallback reader on macOS 14 too; plutil there prints its error on stdout, and only its exit status is trusted now.
