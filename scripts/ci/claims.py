@@ -10,7 +10,9 @@
 #                     allowlist, and every allowlist entry is still used
 #   inbound ports     nothing shipped opens a listening socket
 #   secrets to rotate the registration token is never written to disk and
-#                     no long-lived secret is declared anywhere
+#                     the action asks for no secret; every workflow is read,
+#                     and a secret other than GITHUB_TOKEN must be on the
+#                     README's "Repo-only secrets:" line
 #
 # Usage:
 #   claims.py [--repo-root DIR] [--bin-dir DIR] [--allowlist FILE]
@@ -576,7 +578,8 @@ def check_no_inbound_port(repo_root):
 # tests/claims.test.sh guards the naming with a grep so it cannot regress.
 
 SECRET_INPUT_RE = re.compile(r"token|secret|password", re.IGNORECASE)
-ALLOWED_WORKFLOW_SECRETS = {"GITHUB_TOKEN", "TRAFFIC_TOKEN"}
+BUILTIN_WORKFLOW_SECRET = "GITHUB_TOKEN"
+REPO_ONLY_PREFIX = "Repo-only secrets:"
 WORKFLOW_SECRET_RE = re.compile(r"secrets\.([A-Za-z_][A-Za-z0-9_]*)")
 
 
@@ -689,20 +692,51 @@ def check_action_yaml_clean(repo_root):
     return failures
 
 
-def check_workflow_yaml_refs(repo_root):
-    failures = []
-    path = os.path.join(repo_root, ".github", "workflows", "ci.yml")
+def readme_repo_only(repo_root):
+    """The names on the README's "Repo-only secrets:" line, or None when the
+    README or the line is missing."""
+    path = os.path.join(repo_root, "README.md")
     if not os.path.isfile(path):
-        return [".github/workflows/ci.yml is missing — cannot judge the claim"]
+        return None
     with open(path, "r") as fh:
-        lines = fh.read().splitlines()
-    for number, line in enumerate(lines, 1):
-        for name in WORKFLOW_SECRET_RE.findall(line):
-            if name not in ALLOWED_WORKFLOW_SECRETS:
-                failures.append(
-                    "ci.yml:%d: uses secrets.%s, which is a secret someone "
-                    "has to rotate" % (number, name)
-                )
+        for line in fh:
+            if line.startswith(REPO_ONLY_PREFIX):
+                return set(re.findall(r"`([A-Za-z_][A-Za-z0-9_]*)`", line))
+    return None
+
+
+def check_workflow_yaml_refs(repo_root):
+    """Every workflow file is read. GITHUB_TOKEN is free; any other secret
+    must be on the README's repo-only line, and every name on that line
+    must still be used."""
+    failures = []
+    wf_dir = os.path.join(repo_root, ".github", "workflows")
+    if not os.path.isdir(wf_dir):
+        return [".github/workflows is missing — cannot judge the claim"]
+    listed = readme_repo_only(repo_root)
+    if listed is None:
+        return ["README.md has no %r line — cannot judge the claim" % REPO_ONLY_PREFIX]
+    used = set()
+    for name in sorted(os.listdir(wf_dir)):
+        if not name.endswith((".yml", ".yaml")):
+            continue
+        with open(os.path.join(wf_dir, name), "r") as fh:
+            lines = fh.read().splitlines()
+        for number, line in enumerate(lines, 1):
+            for ref in WORKFLOW_SECRET_RE.findall(line):
+                if ref == BUILTIN_WORKFLOW_SECRET:
+                    continue
+                used.add(ref)
+                if ref not in listed:
+                    failures.append(
+                        "%s:%d: uses secrets.%s, which is a secret someone "
+                        "has to rotate and is not on the README's repo-only line"
+                        % (name, number, ref)
+                    )
+    for ref in sorted(listed - used):
+        failures.append(
+            "README.md lists %s as repo-only but no workflow uses it — a stale claim" % ref
+        )
     return failures
 
 
