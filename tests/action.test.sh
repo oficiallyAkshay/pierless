@@ -137,4 +137,80 @@ else
   pass "action defaults: recovery step clears the marker the failure step wrote"
 fi
 
+# on_recovery: a failed hook never reports recovery; the run where the hook
+# passes reports it once.
+rbase="$(new_tmpdir)"
+rorigin="$rbase/origin.git"
+rhost="$rbase/host"
+rdev="$rbase/dev"
+rhome="$rbase/home"
+mkdir -p "$rhome"
+git init --bare -q "$rorigin"
+git -C "$rorigin" symbolic-ref HEAD refs/heads/main
+git clone -q "$rorigin" "$rdev" 2>/dev/null
+(
+  cd "$rdev" || exit 1
+  git checkout -q -b main
+  git config user.email "dev@example.com"
+  git config user.name "dev"
+  echo one > file.txt
+  git add file.txt
+  git commit -q -m "first"
+  git push -q origin main
+)
+git clone -q "$rorigin" "$rhost"
+(
+  cd "$rdev" || exit 1
+  echo '{"name":"fixture"}' > package.json
+  git add package.json
+  git commit -q -m "add package.json"
+  git push -q origin main
+)
+
+# recovery_cycle INSTALL — runs the Deploy step, then whichever of the
+# Failure and Recovery steps the action would run for its exit code.
+recovery_cycle() {
+  local rout="$rbase/github-output"
+  : > "$rout"
+  (
+    cd "$outside" || exit 1
+    HOME="$rhome" PIERLESS_REPO="$rhost" PIERLESS_BRANCH=main \
+    PIERLESS_STATE_DIR="$state_default" PIERLESS_INSTALL="$1" \
+    PIERLESS_PRUNE_WORKTREES=false PIERLESS_ACTION_PATH="$REPO_ROOT" \
+    GITHUB_OUTPUT="$rout" \
+    bash -c "$(step_script Deploy)" >/dev/null 2>&1
+  )
+  local code deployed
+  code="$(sed -n 's/^exit_code=//p' "$rout" | tail -n1)"
+  deployed="$(sed -n 's/^deployed=//p' "$rout" | tail -n1)"
+  if [ "$code" != "0" ]; then
+    (
+      cd "$rhost" || exit 1
+      HOME="$rhome" PIERLESS_STATE_DIR="$state_default" \
+      PIERLESS_ON_FAILURE="" PIERLESS_RUN_URL="run" PIERLESS_EXIT_CODE="$code" \
+      bash -c "$(step_script 'Failure command')" >/dev/null 2>&1
+    )
+  else
+    (
+      cd "$rhost" || exit 1
+      HOME="$rhome" PIERLESS_STATE_DIR="$state_default" \
+      PIERLESS_ON_RECOVERY="echo recovered >> $rbase/recovery-calls" \
+      PIERLESS_DEPLOYED="$deployed" \
+      bash -c "$(step_script 'Recovery command')" >/dev/null 2>&1
+    )
+  fi
+  RECOVERY_CODE="$code"
+}
+
+recovery_cycle "package.json=false"
+assert_eq "2" "$RECOVERY_CODE" "on_recovery: first run with a failing hook exits 2"
+recovery_cycle "package.json=false"
+assert_eq "2" "$RECOVERY_CODE" "on_recovery: second run with a failing hook exits 2 again"
+assert_empty "$(cat "$rbase/recovery-calls" 2>/dev/null)" "on_recovery: not run while the hook still fails"
+recovery_cycle "none"
+assert_eq "0" "$RECOVERY_CODE" "on_recovery: run with a passing hook exits 0"
+assert_eq "1" "$(wc -l < "$rbase/recovery-calls" 2>/dev/null | tr -d ' ')" "on_recovery: runs once after the hook passes"
+recovery_cycle "none"
+assert_eq "1" "$(wc -l < "$rbase/recovery-calls" 2>/dev/null | tr -d ' ')" "on_recovery: not run again on the next clean run"
+
 test_summary_and_exit
