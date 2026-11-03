@@ -44,7 +44,10 @@
 #                             git ls-remote; if its commit is not already in
 #                             the checkout, behind/ahead print as unknown.
 #
-# GITHUB_OUTPUT (when set) gets: deployed=true|false, commits=N.
+# GITHUB_OUTPUT (when set) gets: deployed=true|false, commits=N, from_sha and
+# to_sha (the commit a pull left and the one it reached; empty when nothing
+# was pulled). The PULLED log line carries the same two as PIERLESS_FROM_SHA
+# and PIERLESS_TO_SHA.
 #
 # Exit codes: 0 up to date or deployed clean; 2 a hook failed (every other
 # hook and the prune still ran first); 3 lock held by a live owner past
@@ -135,10 +138,11 @@ if [ -f "${HOOK_MARKER_FILE}" ]; then
 fi
 
 write_output() {
-  local deployed="$1" commits="$2"
+  local deployed="$1" commits="$2" from_sha="${3:-}" to_sha="${4:-}"
   dry && return
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
-    printf 'deployed=%s\ncommits=%s\n' "${deployed}" "${commits}" >> "${GITHUB_OUTPUT}"
+    printf 'deployed=%s\ncommits=%s\nfrom_sha=%s\nto_sha=%s\n' \
+      "${deployed}" "${commits}" "${from_sha}" "${to_sha}" >> "${GITHUB_OUTPUT}"
   fi
 }
 
@@ -600,8 +604,8 @@ else
 fi
 
 if git merge --ff-only "origin/${BRANCH}" >> "${LOG}" 2>&1; then
-  log "PULLED ${BEHIND} commit(s)"
   NEW_HEAD=$(git rev-parse HEAD)
+  log "PULLED ${BEHIND} commit(s) PIERLESS_FROM_SHA=${PRE_MERGE_SHA} PIERLESS_TO_SHA=${NEW_HEAD}"
 
   HOOK_RANGE_PRE="${PRE_MERGE_SHA}"
   if [ -n "${LAST_HOOKED_SHA}" ] && [ "${LAST_HOOKED_SHA}" != "${NEW_HEAD}" ] \
@@ -639,10 +643,10 @@ if git merge --ff-only "origin/${BRANCH}" >> "${LOG}" 2>&1; then
 
   if [ "${HOOK_FAILED}" -eq 1 ]; then
     log "EXIT 2: a hook failed — see FAILED lines above (every remaining hook and the prune still ran)"
-    write_output true "${BEHIND}"
+    write_output true "${BEHIND}" "${PRE_MERGE_SHA}" "${NEW_HEAD}"
     exit 2
   fi
-  write_output true "${BEHIND}"
+  write_output true "${BEHIND}" "${PRE_MERGE_SHA}" "${NEW_HEAD}"
   exit 0
 else
   log "MERGE FAILED despite behind-only check — fast-forward should have worked"

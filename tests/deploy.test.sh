@@ -164,8 +164,13 @@ assert_eq "false" "$(gh_output_value deployed)" "up to date: deployed=false"
 # --- one new commit pulls ---
 new_fixture
 push_commit_from_dev "second commit"
+from_sha="$(git -C "$HOST" rev-parse HEAD)"
 run_deploy env
+to_sha="$(git -C "$HOST" rev-parse HEAD)"
 assert_exit 0 "$DEPLOY_EXIT" "one commit: exits 0"
+assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s) PIERLESS_FROM_SHA=${from_sha} PIERLESS_TO_SHA=${to_sha}" "one commit: PULLED line carries the SHA it left and the SHA it reached"
+assert_eq "$from_sha" "$(gh_output_value from_sha)" "one commit: from_sha output is the SHA it left"
+assert_eq "$to_sha" "$(gh_output_value to_sha)" "one commit: to_sha output is the SHA it reached"
 assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "one commit: log says PULLED 1 commit(s)"
 assert_eq "true" "$(gh_output_value deployed)" "one commit: deployed=true"
 assert_eq "1" "$(gh_output_value commits)" "one commit: commits=1"

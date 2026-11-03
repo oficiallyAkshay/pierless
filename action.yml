@@ -123,6 +123,8 @@ runs:
         PIERLESS_ON_FAILURE: ${{ inputs.on_failure }}
         PIERLESS_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         PIERLESS_SHA: ${{ github.sha }}
+        PIERLESS_FROM_SHA: ${{ steps.deploy.outputs.from_sha }}
+        PIERLESS_TO_SHA: ${{ steps.deploy.outputs.to_sha }}
         PIERLESS_EXIT_CODE: ${{ steps.deploy.outputs.exit_code }}
         PIERLESS_REASON: ${{ steps.deploy.outputs.reason }}
       run: |
