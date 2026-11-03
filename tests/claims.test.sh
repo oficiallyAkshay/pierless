@@ -234,7 +234,8 @@ sec="$(new_tmpdir)"
 mkdir -p "$sec/bin" "$sec/.github/workflows"
 cp "$REPO_ROOT/bin/install-runner.sh" "$REPO_ROOT/bin/uninstall-runner.sh" "$sec/bin/"
 cp "$REPO_ROOT/action.yml" "$sec/action.yml"
-cp "$REPO_ROOT/.github/workflows/ci.yml" "$sec/.github/workflows/ci.yml"
+cp "$REPO_ROOT/README.md" "$sec/README.md"
+cp "$REPO_ROOT"/.github/workflows/*.yml "$sec/.github/workflows/"
 run_claims --claim secrets --repo-root "$sec"
 assert_exit 0 "$CLAIMS_EXIT" "secrets: a copy of the real tree passes"
 
@@ -263,15 +264,30 @@ cp "$REPO_ROOT/action.yml" "$sec/action.yml"
 
 printf '%s\n' '          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}' >> "$sec/.github/workflows/ci.yml"
 run_claims --claim secrets --repo-root "$sec"
-assert_exit 1 "$CLAIMS_EXIT" "secrets: a workflow secret other than the two allowed ones fails the claim"
+assert_exit 1 "$CLAIMS_EXIT" "secrets: a ci.yml secret not on the README's repo-only line fails the claim"
+assert_contains "$CLAIMS_STDERR" "ci.yml:" "secrets: names the file"
 assert_contains "$CLAIMS_STDERR" "uses secrets.DEPLOY_KEY" "secrets: names the secret someone would have to rotate"
 cp "$REPO_ROOT/.github/workflows/ci.yml" "$sec/.github/workflows/ci.yml"
 
-# TRAFFIC_TOKEN is a read-only counter token: allowed, and still allowed
-# when the claim is otherwise untouched.
-printf '%s\n' '          TRAFFIC: ${{ secrets.TRAFFIC_TOKEN }}' >> "$sec/.github/workflows/ci.yml"
+# Every workflow is read, not only ci.yml: a new file with an unlisted
+# secret fails, and passes once the README's repo-only line lists it.
+printf '%s\n' 'on: push' '          K: ${{ secrets.NEW_KEY }}' > "$sec/.github/workflows/new.yml"
 run_claims --claim secrets --repo-root "$sec"
-assert_exit 0 "$CLAIMS_EXIT" "secrets: the read-only traffic token is allowed"
+assert_exit 1 "$CLAIMS_EXIT" "secrets: a new workflow with an unlisted secret fails the claim"
+assert_contains "$CLAIMS_STDERR" "new.yml:2: uses secrets.NEW_KEY" "secrets: names the new workflow and secret"
+sed -i.bak 's/^Repo-only secrets: /Repo-only secrets: `NEW_KEY` /' "$sec/README.md"
+run_claims --claim secrets --repo-root "$sec"
+assert_exit 0 "$CLAIMS_EXIT" "secrets: listing the secret on the repo-only line passes"
+rm "$sec/.github/workflows/new.yml"
+run_claims --claim secrets --repo-root "$sec"
+assert_exit 1 "$CLAIMS_EXIT" "secrets: a listed secret no workflow uses fails the claim"
+assert_contains "$CLAIMS_STDERR" "lists NEW_KEY as repo-only" "secrets: names the stale entry"
+cp "$REPO_ROOT/README.md" "$sec/README.md"
+
+grep -v '^Repo-only secrets:' "$REPO_ROOT/README.md" > "$sec/README.md"
+run_claims --claim secrets --repo-root "$sec"
+assert_exit 1 "$CLAIMS_EXIT" "secrets: a README without the repo-only line fails the claim"
+cp "$REPO_ROOT/README.md" "$sec/README.md"
 
 # --- CodeQL py/clear-text-logging-sensitive-data guard ---------------------
 # CodeQL's clear-text-logging query treats the return value of ANY call
