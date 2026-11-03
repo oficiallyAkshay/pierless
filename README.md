@@ -2,7 +2,7 @@
 
 <p align="center"><b>Merge to main. Your Mac is running it seconds later.</b></p>
 
-<p align="center"><img alt="Merge it. Pierless takes it from there: it deploys instantly, fixes stuck deploys and dropped daemons on its own, reinstalls only what changed, and stays quiet unless something is red. No pier, no port: it drops anchor itself" src="assets/readme/hero.svg" width="900"></p>
+<p align="center"><img alt="Merge it. Pierless takes it from there: it deploys instantly, fixes stuck deploys on its own, reinstalls only what changed, and stays quiet unless something is red. No pier, no port: it drops anchor itself" src="assets/readme/hero.svg" width="900"></p>
 
 <p align="center">
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/license-MIT-2f6f4e?logo=opensourceinitiative&logoColor=white"></a>
@@ -28,7 +28,7 @@ pierless turns a GitHub self-hosted runner into a deploy-only agent for one Mac:
 
 - 🚀 **Deploys in seconds.** Merge to main, and your Mac is running it before you have switched tabs.
 - 🖥️ **Built for your Mac.** One box, registered once, kept on the workflow and branch you named.
-- 🩹 **Heals itself.** A stranded branch or a dropped daemon is put right on the next run, no page needed.
+- 🩹 **Heals itself.** A stranded branch, or a deploy that stopped between the pull and its hooks, is put right on the next run, no page needed. A daemon is reloaded only when its definition file changed; one that was switched off by hand stays off.
 - 🔒 **Nothing listens.** No inbound port, no tunnel, no secret to rotate.
 - ✅ **Claims are proven.** Inbound ports, secrets to rotate and runtime tools are checked by a test on every run, not typed by hand.
 
@@ -38,7 +38,7 @@ Use it when:
 
 - Your Mac already runs a GitHub Actions self-hosted runner for a private repo.
 - You want a merge to reach it in seconds, without opening a port or keeping a deploy key.
-- A stuck deploy or a dropped daemon should heal itself, not page you.
+- A stuck deploy should heal itself, not page you.
 
 Look elsewhere when:
 
