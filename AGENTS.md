@@ -18,6 +18,8 @@ The short version for an agent working in this repo. CONTRIBUTING.md carries the
 - The gate (`bin/job-started-gate.sh`) makes no network call and runs no external command.
 - Every machine-specific value comes from config or the environment, never a hardcoded person, channel or host.
 - No release labels or version bumps in a PR. Releases are cut from a tag, by the owner only.
+- Never reintroduce the name gangplank: it is taken on npm, PyPI and as a GitHub organisation, which also blocks a Marketplace listing.
+- The main ruleset requires the `ci` check and allows rebase merges only, so arm auto-merge with `gh pr merge --auto --rebase`.
 
 ## Where things live
 
