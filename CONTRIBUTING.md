@@ -50,6 +50,14 @@ Two workflows sit outside the gate. `readme-check.yml` runs readmerlin against t
 - Every machine-specific value comes from the config file or the environment. Nothing in the code names a person, a channel, or a host.
 - A comment explains why, never what. If the what needs a comment, the code is wrong.
 
+## Scorecard alerts accepted on purpose
+
+The owner decided on 2026-11-03 to accept three OpenSSF Scorecard code-scanning alerts. pierless has one maintainer, so a later audit does not need to file these again.
+
+- **Code-Review: won't fix.** The repository has one owner and a required approval cannot come from the author, so it would block every merge, auto-merge included. The main ruleset already requires the `ci` check and linear history.
+- **Branch-Protection: false positive.** Scorecard reads classic branch protection. This repository uses a ruleset instead.
+- **Fuzzing: won't fix.** No fuzz harness exists. Building one is a separate project and gets its own ticket.
+
 ## Reporting a problem
 
 Open an issue with the failing step's output from the GitHub run and the output of `pierless status`. Never paste anything from your `.env`.
