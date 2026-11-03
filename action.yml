@@ -73,9 +73,9 @@ inputs:
     required: false
     default: ""
   state_dir:
-    description: Directory holding the last-failed marker and the hook-idempotency marker between runs.
+    description: Directory holding the last-failed marker and the hook-idempotency marker between runs. Empty uses $HOME/.pierless.
     required: false
-    default: $HOME/.pierless
+    default: ""
 outputs:
   deployed:
     description: "true if this run fast-forwarded the checkout, false otherwise."
@@ -127,8 +127,9 @@ runs:
         PIERLESS_REASON: ${{ steps.deploy.outputs.reason }}
       run: |
         set -uo pipefail
-        mkdir -p "$PIERLESS_STATE_DIR"
-        echo "$PIERLESS_RUN_URL" > "$PIERLESS_STATE_DIR/last-failed"
+        state_dir="${PIERLESS_STATE_DIR:-$HOME/.pierless}"
+        mkdir -p "$state_dir"
+        echo "$PIERLESS_RUN_URL" > "$state_dir/last-failed"
         if [ -n "$PIERLESS_ON_FAILURE" ]; then
           eval "$PIERLESS_ON_FAILURE"
         fi
@@ -146,7 +147,7 @@ runs:
         PIERLESS_EXIT_CODE: "0"
       run: |
         set -uo pipefail
-        marker="$PIERLESS_STATE_DIR/last-failed"
+        marker="${PIERLESS_STATE_DIR:-$HOME/.pierless}/last-failed"
         if [ -f "$marker" ] && [ "$PIERLESS_DEPLOYED" = "true" ]; then
           if [ -n "$PIERLESS_ON_RECOVERY" ]; then
             eval "$PIERLESS_ON_RECOVERY"
