@@ -86,9 +86,10 @@ run_deploy() {
     PIERLESS_STATE_DIR="$statedir" \
     GITHUB_OUTPUT="$ghoutput" \
     "$@" \
-    bash "$DEPLOY_SCRIPT" ) >"$out" 2>"$err"
+    bash "$DEPLOY_SCRIPT" ${DEPLOY_ARGS:-} ) >"$out" 2>"$err"
   ec=$?
   DEPLOY_STATE_DIR="$statedir"
+  DEPLOY_LOCK_DIR="$lockdir/lock"
 
   DEPLOY_STDOUT="$(cat "$out")"
   DEPLOY_STDERR="$(cat "$err")"
@@ -625,15 +626,6 @@ new_fixture
 run_deploy env
 assert_exit 0 "$DEPLOY_EXIT" "debug off: exits 0"
 assert_not_contains "$DEPLOY_LOG" "debug:" "debug off: no debug lines"
-
-# --- PIERLESS_DRY_RUN=1: deploy.sh has no dry-run support, so it is
-# inert — the flag changes nothing and a real deploy still happens.
-new_fixture
-push_commit_from_dev "dry-run-flag commit"
-run_deploy env PIERLESS_DRY_RUN=1
-assert_exit 0 "$DEPLOY_EXIT" "PIERLESS_DRY_RUN=1: exits 0 same as without it"
-assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "PIERLESS_DRY_RUN=1: still pulls for real (flag is a no-op in deploy.sh)"
-assert_eq "true" "$(gh_output_value deployed)" "PIERLESS_DRY_RUN=1: deployed=true (not a dry run)"
 
 # --- worktree prune: gh reports MERGED for one branch, OPEN for another ---
 new_fixture
@@ -1310,5 +1302,132 @@ fi
 erronly_calls_content="$(cat "$erronly_calls" 2>/dev/null)"
 assert_contains "$erronly_calls_content" "bootstrap" "StandardErrorPath only: launchctl bootstrap still ran"
 
+# --- dry run: PIERLESS_DRY_RUN=1 and --dry-run change nothing, print the plan ---
+# One commit behind, with a dirty tree, a package.json change, a new plist
+# and PIERLESS_KICK set: every state-changing step has something to do.
+for dry_mode in env flag; do
+  new_fixture
+  (
+    cd "$DEV" || exit 1
+    mkdir -p services
+    echo '<plist dry v1/>' > services/ai.pierless.dry.plist
+    echo '{"name":"fixture","v":3}' > package.json
+    git add services/ai.pierless.dry.plist package.json
+    git commit -q -m "dry-run commit"
+    git push -q origin main
+  )
+  echo "local edit" >> "$HOST/README.md"
+  echo "scratch" > "$HOST/scratch.txt"
+  # The checkout already holds the remote commit (a fetch ran earlier), so
+  # the counts can be read without the dry run fetching anything itself.
+  git_quiet -C "$HOST" fetch origin
+  stub_bin launchctl 'echo "launchctl $*" >> "$LAUNCHCTL_CALLS_LOG"; exit 0'
+  dry_calls="$(new_tmpdir)/launchctl-calls.log"
+  : > "$dry_calls"
+  dry_home="$(new_tmpdir)"
+  dry_head_before="$(git -C "$HOST" rev-parse HEAD)"
+  dry_tracking_before="$(git -C "$HOST" rev-parse refs/remotes/origin/main)"
+  dry_status_before="$(git -C "$HOST" status --porcelain)"
+  if [ "$dry_mode" = "env" ]; then
+    DEPLOY_ARGS="" LAUNCHCTL_CALLS_LOG="$dry_calls" run_deploy env HOME="$dry_home" PIERLESS_DRY_RUN=1 \
+      PIERLESS_SERVICES_DIR=services PIERLESS_KICK="daemon.one" PIERLESS_ON_PARK="touch ran-on-park.txt" \
+      PIERLESS_INSTALL="package.json=touch ran-install-hook.txt"
+  else
+    DEPLOY_ARGS="--dry-run" LAUNCHCTL_CALLS_LOG="$dry_calls" run_deploy env HOME="$dry_home" \
+      PIERLESS_SERVICES_DIR=services PIERLESS_KICK="daemon.one" PIERLESS_ON_PARK="touch ran-on-park.txt" \
+      PIERLESS_INSTALL="package.json=touch ran-install-hook.txt"
+  fi
+  assert_exit 0 "$DEPLOY_EXIT" "dry run ($dry_mode): exits 0"
+  assert_eq "$dry_head_before" "$(git -C "$HOST" rev-parse HEAD)" "dry run ($dry_mode): HEAD unchanged"
+  assert_eq "$dry_tracking_before" "$(git -C "$HOST" rev-parse refs/remotes/origin/main)" "dry run ($dry_mode): remote-tracking ref not updated"
+  assert_empty "$(git -C "$HOST" stash list)" "dry run ($dry_mode): stash list unchanged"
+  assert_eq "$dry_status_before" "$(git -C "$HOST" status --porcelain)" "dry run ($dry_mode): working tree unchanged"
+  assert_empty "$(cat "$dry_calls")" "dry run ($dry_mode): launchctl stub log unchanged"
+  if [ -e "$HOST/ran-install-hook.txt" ] || [ -e "$HOST/ran-on-park.txt" ]; then
+    fail "dry run ($dry_mode): no install or park hook ran"
+  else
+    pass "dry run ($dry_mode): no install or park hook ran"
+  fi
+  assert_contains "$DEPLOY_STDOUT" "plan: hook: run PIERLESS_ON_PARK" "dry run ($dry_mode): plan line for the park command"
+  assert_empty "$DEPLOY_LOG" "dry run ($dry_mode): deploy log file not written"
+  if [ -e "$DEPLOY_LOCK_DIR" ] || [ -e "$DEPLOY_STATE_DIR" ] || [ -e "$dry_home/Library" ]; then
+    fail "dry run ($dry_mode): no lock, state or LaunchAgents folder created"
+  else
+    pass "dry run ($dry_mode): no lock, state or LaunchAgents folder created"
+  fi
+  assert_contains "$DEPLOY_STDOUT" "plan: behind 1, ahead 0 of origin/main" "dry run ($dry_mode): plan line gives behind and ahead"
+  assert_contains "$DEPLOY_STDOUT" "plan: park 2 file(s)" "dry run ($dry_mode): plan line names the parked files"
+  assert_contains "$DEPLOY_STDOUT" "plan: fast-forward 1 commit(s)" "dry run ($dry_mode): plan line for the fast-forward"
+  assert_contains "$DEPLOY_STDOUT" "plan: hook: install in" "dry run ($dry_mode): plan line for the install hook"
+  assert_contains "$DEPLOY_STDOUT" "plan: hook: plist changes" "dry run ($dry_mode): plan line for the daemon load"
+  assert_contains "$DEPLOY_STDOUT" "plan: hook: kickstart -k daemon.one" "dry run ($dry_mode): plan line for the kickstart"
+  assert_eq "" "$(gh_output_value deployed)" "dry run ($dry_mode): GITHUB_OUTPUT not written"
+done
+
+# --- dry run: the remote commit is not in the checkout -> unknown, no fetch ---
+new_fixture
+(
+  cd "$DEV" || exit 1
+  echo "unseen" >> README.md
+  git add README.md
+  git commit -q -m "never fetched"
+  git push -q origin main
+)
+echo "unseen local edit" >> "$HOST/README.md"
+dry_unseen_head="$(git -C "$HOST" rev-parse HEAD)"
+dry_unseen_tracking="$(git -C "$HOST" rev-parse refs/remotes/origin/main)"
+DEPLOY_ARGS="--dry-run" run_deploy env
+assert_exit 0 "$DEPLOY_EXIT" "dry run, remote commit unseen: exits 0"
+assert_contains "$DEPLOY_STDOUT" "plan: behind/ahead of origin/main unknown" "dry run, remote commit unseen: plan says unknown"
+assert_contains "$DEPLOY_STDOUT" "plan: park 1 file(s) if behind: README.md" "dry run, remote commit unseen: park plan still printed"
+assert_contains "$DEPLOY_STDOUT" "plan: hooks unknown" "dry run, remote commit unseen: hook plan says unknown"
+assert_empty "$(git -C "$HOST" stash list)" "dry run, remote commit unseen: stash list unchanged"
+assert_eq "$dry_unseen_tracking" "$(git -C "$HOST" rev-parse refs/remotes/origin/main)" "dry run, remote commit unseen: no fetch happened"
+assert_eq "$dry_unseen_head" "$(git -C "$HOST" rev-parse HEAD)" "dry run, remote commit unseen: HEAD unchanged"
+
+# --- dry run: unknown remote commit, clean tree ---
+new_fixture
+push_commit_from_dev "unseen clean"
+DEPLOY_ARGS="--dry-run" run_deploy env
+assert_contains "$DEPLOY_STDOUT" "plan: nothing to park, working tree clean" "dry run, unseen and clean: plan says nothing to park"
+
+# --- dry run: up to date, with and without unfinished hooks ---
+new_fixture
+DEPLOY_ARGS="--dry-run" run_deploy env
+assert_contains "$DEPLOY_STDOUT" "plan: up to date, nothing to deploy" "dry run, up to date: plan says nothing to deploy"
+dry_first_sha="$(git -C "$HOST" rev-parse HEAD)"
+push_commit_from_dev "second for resume"
+git_quiet -C "$HOST" pull origin main
+dry_marker_dir="$(new_tmpdir)"
+printf '%s\n' "$dry_first_sha" > "$dry_marker_dir/last-hooked-sha"
+DEPLOY_ARGS="--dry-run" run_deploy env PIERLESS_STATE_DIR="$dry_marker_dir"
+assert_contains "$DEPLOY_STDOUT" "plan: up to date, nothing to pull — hooks would resume from $dry_first_sha" "dry run, up to date, marker behind: plan says hooks would resume"
+assert_eq "$dry_first_sha" "$(cat "$dry_marker_dir/last-hooked-sha" | tr -d '[:space:]')" "dry run, up to date, marker behind: marker file untouched"
+
+# --- dry run: behind with a clean tree and an older hook marker ---
+push_commit_from_dev "third for resume"
+git_quiet -C "$HOST" fetch origin
+DEPLOY_ARGS="--dry-run" run_deploy env PIERLESS_STATE_DIR="$dry_marker_dir"
+assert_contains "$DEPLOY_STDOUT" "plan: behind 1, ahead 0" "dry run, behind and clean: counts printed"
+assert_contains "$DEPLOY_STDOUT" "plan: nothing to park, working tree clean" "dry run, behind and clean: plan says nothing to park"
+
+# --- dry run: ahead only, and diverged ---
+new_fixture
+(
+  cd "$HOST" || exit 1
+  echo "host only" >> README.md
+  git add README.md
+  git commit -q -m "host-only commit"
+)
+DEPLOY_ARGS="--dry-run" run_deploy env
+assert_exit 0 "$DEPLOY_EXIT" "dry run, ahead: exits 0"
+assert_contains "$DEPLOY_STDOUT" "plan: local has un-pushed commits" "dry run, ahead: plan says it would not pull"
+push_commit_from_dev "origin side for diverge"
+git_quiet -C "$HOST" fetch origin
+dry_div_head="$(git -C "$HOST" rev-parse HEAD)"
+DEPLOY_ARGS="--dry-run" run_deploy env
+assert_exit 0 "$DEPLOY_EXIT" "dry run, diverged: exits 0"
+assert_contains "$DEPLOY_STDOUT" "plan: diverged" "dry run, diverged: plan says the fast-forward would be refused"
+assert_eq "$dry_div_head" "$(git -C "$HOST" rev-parse HEAD)" "dry run, diverged: HEAD unchanged"
 
 test_summary_and_exit

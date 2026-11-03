@@ -37,6 +37,12 @@
 #   PIERLESS_TRIGGER         default manual. Logged only.
 #   PIERLESS_STDOUT          "1" mirrors every log line to stdout too.
 #   PIERLESS_DEBUG           "1" logs every decision, one line each.
+#   PIERLESS_DRY_RUN         "1" (or the --dry-run argument) changes nothing:
+#                             no fetch, lock, stash, hook, launchctl call or
+#                             log file. Prints one "plan:" line per step to
+#                             stdout and exits 0. The remote is read with
+#                             git ls-remote; if its commit is not already in
+#                             the checkout, behind/ahead print as unknown.
 #
 # GITHUB_OUTPUT (when set) gets: deployed=true|false, commits=N.
 #
@@ -77,12 +83,30 @@ if ! git -C "${REPO}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 64
 fi
 
-LOG="${PIERLESS_LOG:-${HOME}/.pierless/deploy.log}"
-mkdir -p "$(dirname "${LOG}")" 2>/dev/null || true
+DRY_RUN=0
+[ "${PIERLESS_DRY_RUN:-}" = "1" ] && DRY_RUN=1
+for arg in "$@"; do
+  [ "${arg}" = "--dry-run" ] && DRY_RUN=1
+done
+
+# dry — true in a dry run. Every state-changing step below asks it first and
+# logs a "plan:" line instead of acting.
+dry() { [ "${DRY_RUN}" = "1" ]; }
+
+if dry; then
+  LOG=/dev/null
+else
+  LOG="${PIERLESS_LOG:-${HOME}/.pierless/deploy.log}"
+  mkdir -p "$(dirname "${LOG}")" 2>/dev/null || true
+fi
 
 log() {
   local line
   line="[$(ts)] $*"
+  if dry; then
+    echo "${line}"
+    return 0
+  fi
   echo "${line}" >> "${LOG}"
   [ "${PIERLESS_STDOUT:-}" = "1" ] && echo "${line}"
   return 0
@@ -110,6 +134,7 @@ fi
 
 write_output() {
   local deployed="$1" commits="$2"
+  dry && return
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
     printf 'deployed=%s\ncommits=%s\n' "${deployed}" "${commits}" >> "${GITHUB_OUTPUT}"
   fi
@@ -127,6 +152,7 @@ HOOK_FAILED=0
 # half-written marker that would be read back as a valid (wrong) SHA.
 write_marker() {
   local sha="$1"
+  if dry; then log "plan: record hook marker ${sha}"; return; fi
   mkdir -p "${PIERLESS_STATE_DIR}" 2>/dev/null || true
   if printf '%s\n' "${sha}" > "${HOOK_MARKER_FILE}.tmp" 2>/dev/null \
      && mv -f "${HOOK_MARKER_FILE}.tmp" "${HOOK_MARKER_FILE}" 2>/dev/null; then
@@ -178,6 +204,7 @@ run_install_hooks() {
       log "hook: skip install — ${target} is not a directory"
       continue
     fi
+    if dry; then log "plan: hook: install in ${target}: ${command}"; continue; fi
     log "hook: install in ${target}: ${command}"
     if ! (cd "${target}" && eval "${command}" >> "${LOG}" 2>&1); then
       log "hook: install FAILED in ${target}"
@@ -223,7 +250,7 @@ ensure_plist_log_dirs() {
 }
 
 run_service_hooks() {
-  local pre="$1"
+  local pre="$1" head="${2:-HEAD}"
   local dir="${PIERLESS_SERVICES_DIR:-}"
   if [ -z "${dir}" ]; then
     debug "PIERLESS_SERVICES_DIR unset, skipping daemon load/unload"
@@ -233,8 +260,12 @@ run_service_hooks() {
   local dir_escaped
   dir_escaped=$(printf '%s' "${dir}" | sed 's/[.[\*^$/]/\\&/g')
   local plist_changes
-  plist_changes=$(git diff --name-only --no-renames "${pre}" HEAD 2>>"${LOG}" | grep -E "^${dir_escaped}/[^/]+\\.plist\$" || true)
+  plist_changes=$(git diff --name-only --no-renames "${pre}" "${head}" 2>>"${LOG}" | grep -E "^${dir_escaped}/[^/]+\\.plist\$" || true)
   [ -z "${plist_changes}" ] && { debug "no plist changes under ${dir}"; return; }
+  if dry; then
+    log "plan: hook: plist changes, launchctl would load or unload: $(echo "${plist_changes}" | tr '\n' ' ')"
+    return
+  fi
 
   log "hook: plist changes: $(echo "${plist_changes}" | tr '\n' ' ')"
   local target_dir="${HOME}/Library/LaunchAgents"
@@ -271,6 +302,7 @@ run_service_hooks() {
 run_kick() {
   local labels="${PIERLESS_KICK:-}"
   [ -z "${labels}" ] && { debug "PIERLESS_KICK unset, skipping kickstart"; return; }
+  if dry; then log "plan: hook: kickstart -k ${labels}"; return; fi
   local uid label
   uid="$(id -u)"
   for label in ${labels}; do
@@ -287,6 +319,7 @@ prune_worktrees() {
     debug "PIERLESS_PRUNE_WORKTREES=${PIERLESS_PRUNE_WORKTREES}, skipping prune"
     return
   fi
+  if dry; then log "plan: prune worktrees whose pull request merged"; return; fi
   if ! command -v gh >/dev/null 2>&1; then
     log "worktree prune SKIPPED — gh not on PATH, cannot confirm a branch's PR merged"
     return
@@ -332,6 +365,81 @@ prune_worktrees() {
   [ "${pruned}" -gt 0 ] || [ "${skipped}" -gt 0 ] && log "worktree cleanup: pruned=${pruned} skipped=${skipped}"
   return 0
 }
+
+# --- Dry run: print the plan, change nothing -------------------------------
+# No lock, no log file, no fetch (a fetch moves the remote-tracking refs):
+# the remote tip is read with `git ls-remote`, which writes nothing. Counts
+# need that commit in the local object store; when it is not there they
+# print as unknown rather than fetching.
+if dry; then
+  cd "${REPO}" || { log "FATAL: cannot cd to ${REPO}"; exit 64; }
+  export GIT_OPTIONAL_LOCKS=0   # git status must not refresh the index
+  CURRENT_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
+  REMOTE_SHA=$(git ls-remote origin "refs/heads/${BRANCH}" 2>/dev/null | cut -f1)
+  PARKED_FILES="$(git status --porcelain 2>/dev/null | cut -c4-)"
+  PARKED_COUNT=0
+  [ -n "${PARKED_FILES}" ] && PARKED_COUNT=$(printf '%s\n' "${PARKED_FILES}" | grep -c .)
+  names_joined="$(printf '%s' "${PARKED_FILES}" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')"
+
+  if [ -z "${CURRENT_SHA}" ] || [ -z "${REMOTE_SHA}" ] \
+     || ! git cat-file -e "${REMOTE_SHA}^{commit}" 2>/dev/null; then
+    log "plan: fetch not run (refs are never updated in a dry run)"
+    log "plan: behind/ahead of origin/${BRANCH} unknown — the remote commit is not readable without a fetch"
+    if [ "${PARKED_COUNT}" -gt 0 ]; then
+      log "plan: park ${PARKED_COUNT} file(s) if behind: ${names_joined}"
+    else
+      log "plan: nothing to park, working tree clean"
+    fi
+    log "plan: hooks unknown — they depend on the remote commit"
+    exit 0
+  fi
+
+  BEHIND=$(git rev-list --count "HEAD..${REMOTE_SHA}" 2>/dev/null || echo "?")
+  AHEAD=$(git rev-list --count "${REMOTE_SHA}..HEAD" 2>/dev/null || echo "?")
+  log "plan: fetch not run (refs are never updated in a dry run)"
+  log "plan: behind ${BEHIND}, ahead ${AHEAD} of origin/${BRANCH} (${REMOTE_SHA})"
+
+  DRY_PRE=""
+  if [ "${BEHIND}" = "0" ] && [ "${AHEAD}" = "0" ]; then
+    if [ -n "${LAST_HOOKED_SHA}" ] && [ "${LAST_HOOKED_SHA}" != "${CURRENT_SHA}" ] \
+       && git rev-parse --verify --quiet "${LAST_HOOKED_SHA}" >/dev/null 2>&1; then
+      DRY_PRE="${LAST_HOOKED_SHA}"
+      log "plan: up to date, nothing to pull — hooks would resume from ${DRY_PRE}"
+    else
+      log "plan: up to date, nothing to deploy"
+      exit 0
+    fi
+  elif [ "${AHEAD}" != "0" ] && [ "${BEHIND}" = "0" ]; then
+    log "plan: local has un-pushed commits — would not pull"
+    exit 0
+  elif [ "${AHEAD}" != "0" ]; then
+    log "plan: diverged — fast-forward would be refused (exit 4)"
+    exit 0
+  else
+    if [ "${PARKED_COUNT}" -gt 0 ]; then
+      log "plan: park ${PARKED_COUNT} file(s): ${names_joined}"
+    else
+      log "plan: nothing to park, working tree clean"
+    fi
+    log "plan: fast-forward ${BEHIND} commit(s) to origin/${BRANCH}"
+    DRY_PRE="${CURRENT_SHA}"
+    if [ -n "${LAST_HOOKED_SHA}" ] && [ "${LAST_HOOKED_SHA}" != "${REMOTE_SHA}" ] \
+       && git rev-parse --verify --quiet "${LAST_HOOKED_SHA}" >/dev/null 2>&1; then
+      DRY_PRE="${LAST_HOOKED_SHA}"
+    fi
+  fi
+
+  CHANGED=$(git diff --name-only "${DRY_PRE}" "${REMOTE_SHA}" 2>/dev/null)
+  run_install_hooks "${DRY_PRE}" "${CHANGED}"
+  run_service_hooks "${DRY_PRE}" "${REMOTE_SHA}"
+  [ "${BEHIND}" != "0" ] && run_kick
+  prune_worktrees
+  write_marker "${REMOTE_SHA}"
+  if [ "${PARKED_COUNT}" -gt 0 ] && [ "${BEHIND}" != "0" ] && [ -n "${PIERLESS_ON_PARK:-}" ]; then
+    log "plan: hook: run PIERLESS_ON_PARK"
+  fi
+  exit 0
+fi
 
 # --- Cross-process lock ----------------------------------------------------
 # mkdir is atomic even across processes, so its success/failure IS the lock.
