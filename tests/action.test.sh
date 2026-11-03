@@ -202,6 +202,16 @@ recovery_cycle() {
   RECOVERY_CODE="$code"
 }
 
+(
+  cd "$rhost" || exit 1
+  HOME="$rhome" PIERLESS_STATE_DIR="$base/sha-state" \
+  PIERLESS_ON_FAILURE="printf '%s %s' \"\$PIERLESS_FROM_SHA\" \"\$PIERLESS_TO_SHA\" > $rbase/failure-env" \
+  PIERLESS_RUN_URL="run" PIERLESS_EXIT_CODE=2 \
+  PIERLESS_FROM_SHA="1111111" PIERLESS_TO_SHA="2222222" \
+  bash -c "$(step_script 'Failure command')" >/dev/null 2>&1
+)
+assert_eq "1111111 2222222" "$(cat "$rbase/failure-env" 2>/dev/null)" "on_failure: environment carries PIERLESS_FROM_SHA and PIERLESS_TO_SHA"
+
 recovery_cycle "package.json=false"
 assert_eq "2" "$RECOVERY_CODE" "on_recovery: first run with a failing hook exits 2"
 recovery_cycle "package.json=false"

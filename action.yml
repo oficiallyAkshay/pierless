@@ -83,6 +83,12 @@ outputs:
   commits:
     description: Number of commits pulled.
     value: ${{ steps.deploy.outputs.commits }}
+  from_sha:
+    description: Commit the checkout was at before the pull. Empty when nothing was pulled.
+    value: ${{ steps.deploy.outputs.from_sha }}
+  to_sha:
+    description: Commit the checkout reached by the pull. Empty when nothing was pulled.
+    value: ${{ steps.deploy.outputs.to_sha }}
 runs:
   using: composite
   steps:
@@ -125,6 +131,8 @@ runs:
         PIERLESS_SHA: ${{ github.sha }}
         PIERLESS_EXIT_CODE: ${{ steps.deploy.outputs.exit_code }}
         PIERLESS_REASON: ${{ steps.deploy.outputs.reason }}
+        PIERLESS_FROM_SHA: ${{ steps.deploy.outputs.from_sha }}
+        PIERLESS_TO_SHA: ${{ steps.deploy.outputs.to_sha }}
       run: |
         set -uo pipefail
         state_dir="${PIERLESS_STATE_DIR:-$HOME/.pierless}"
