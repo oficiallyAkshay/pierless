@@ -2,6 +2,8 @@
 
 One line per merged change, newest first. No version numbers here.
 
+- A deploy whose fetch loses a ref-lock race to another fetch of the same repo fetches once more instead of failing, and a changed plist of a running job waits for launchd to drop the old job before bootstrapping it.
+
 - The npm and PyPI packages are dropped before either was ever published: the action is installed from this repo only, and the floating tag a consumer's `uses:` follows is `v1`.
 - The same scripts ship as the npm and PyPI packages pierless, published from a version tag by trusted publishing; the CLI gains a deploy verb.
 - The same pre-commit hooks run locally and in CI from one config: secrets, shellcheck, markdown lint. CI also scans the whole history for secrets and lints the workflows.

@@ -26,6 +26,9 @@
 #   PIERLESS_PRUNE_WORKTREES true (default) or false.
 #   PIERLESS_SELF_LABEL      default pierless.runner. A plist named for this
 #                             label is never loaded/unloaded from in here.
+#   PIERLESS_UNLOAD_WAIT     default 10. Seconds a changed plist's reload
+#                             waits, after its bootout, for launchd to stop
+#                             listing the label before bootstrapping it.
 #   PIERLESS_ON_PARK         command run once, after a deploy that parked
 #                             edits and then actually fast-forwarded. Gets
 #                             PIERLESS_PARKED_FILES (newline list),
@@ -98,6 +101,7 @@ log "trigger=${PIERLESS_TRIGGER} repo=${REPO}"
 
 LOCK_DIR="${PIERLESS_LOCK_DIR:-${HOME}/.pierless/lock}"
 PIERLESS_SELF_LABEL="${PIERLESS_SELF_LABEL:-pierless.runner}"
+PIERLESS_UNLOAD_WAIT="${PIERLESS_UNLOAD_WAIT:-10}"
 PIERLESS_PRUNE_WORKTREES="${PIERLESS_PRUNE_WORKTREES:-true}"
 BRANCH="${PIERLESS_BRANCH:-main}"
 
@@ -208,6 +212,26 @@ extract_plist_value() {
   printf '%s' "${val}"
 }
 
+# wait_until_unloaded TARGET — after a bootout, waits up to
+# PIERLESS_UNLOAD_WAIT seconds for launchd to stop listing TARGET. A
+# running KeepAlive job is still unloading when bootout returns, and a
+# bootstrap in that window fails with "Bootstrap failed: 5". A label that
+# was never loaded (bootout said "No such process") is gone already, so
+# this returns at once.
+wait_until_unloaded() {
+  local target="$1" waited=0
+  while launchctl print "${target}" >/dev/null 2>&1; do
+    if [ "${waited}" -ge "${PIERLESS_UNLOAD_WAIT}" ]; then
+      log "hook: ${target} still listed ${waited}s after bootout — bootstrapping anyway"
+      return 0
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  [ "${waited}" -gt 0 ] && debug "${target} unloaded after ${waited}s"
+  return 0
+}
+
 # ensure_plist_log_dirs PLIST — creates the parent directories of a
 # plist's StandardOutPath/StandardErrorPath before it is bootstrapped, so
 # launchd doesn't silently drop a daemon's first output because the
@@ -254,6 +278,7 @@ run_service_hooks() {
     if [ -f "${src}" ]; then
       log "hook: loading ${fname}"
       launchctl bootout "gui/${uid}/${label}" >> "${LOG}" 2>&1 || true
+      wait_until_unloaded "gui/${uid}/${label}"
       ensure_plist_log_dirs "${src}"
       cp "${src}" "${target_dir}/${fname}"
       if ! launchctl bootstrap "gui/${uid}" "${target_dir}/${fname}" >> "${LOG}" 2>&1; then
@@ -389,10 +414,33 @@ cd "${REPO}" || { log "FATAL: cannot cd to ${REPO}"; exit 64; }
 # Nothing above this point touches the working tree, and nothing below it
 # does either until we know — from the compare, right after this — that a
 # fast-forward is actually about to happen.
-if ! git fetch --prune origin --quiet 2>> "${LOG}"; then
-  log "FETCH FAILED: git fetch --prune origin"
-  write_output false 0
-  exit 5
+# lost_ref_race STDERR — true when every ref git refused to update was
+# refused only because another fetch into this same repo had already moved
+# it forward ("cannot lock ref '<ref>': is at <found> but expected
+# <expected>", with <expected> an ancestor of <found>). Any other error, or
+# a ref that moved anywhere but forward, is false.
+lost_ref_race() {
+  local pairs found expected
+  pairs="$(printf '%s\n' "$1" | sed -n "s/.*cannot lock ref '[^']*': is at \([0-9a-f]\{7,\}\) but expected \([0-9a-f]\{7,\}\).*/\1 \2/p")"
+  [ -n "${pairs}" ] || return 1
+  while read -r found expected; do
+    git merge-base --is-ancestor "${expected}" "${found}" 2>/dev/null || return 1
+  done <<< "${pairs}"
+  return 0
+}
+
+fetch_err=""
+if ! fetch_err="$(git fetch --prune origin --quiet 2>&1)"; then
+  [ -n "${fetch_err}" ] && printf '%s\n' "${fetch_err}" >> "${LOG}"
+  if lost_ref_race "${fetch_err}" && git fetch --prune origin --quiet 2>> "${LOG}"; then
+    log "fetch: another fetch moved a ref first — fetched again"
+  else
+    log "FETCH FAILED: git fetch --prune origin"
+    write_output false 0
+    exit 5
+  fi
+elif [ -n "${fetch_err}" ]; then
+  printf '%s\n' "${fetch_err}" >> "${LOG}"
 fi
 debug "fetch --prune origin OK"
 
