@@ -385,8 +385,18 @@ new_fixture
 race_dir="$(new_tmpdir)"
 race_lock="$race_dir/lock"
 mkdir -p "$race_lock" "$race_dir/bin"
-( sleep 0.1 & echo $! > "$race_lock/pid" )
-sleep 1
+# The file-wide sleep stub (set earlier) must not reach this test: the setup
+# sleeps and the deploy's own 5s wait have to take real time. Setup uses
+# /bin/sleep, and the waiters get a PATH without the stub folder.
+( /bin/sleep 0.1 & echo $! > "$race_lock/pid" )
+/bin/sleep 1
+race_path=""
+race_old_ifs="$IFS"; IFS=:
+for race_p in $PATH; do
+  [ "$race_p" = "${PIERLESS_TEST_STUB_DIR:-}" ] && continue
+  race_path="${race_path:+$race_path:}$race_p"
+done
+IFS="$race_old_ifs"
 race_real_git="$(command -v git)"
 cat > "$race_dir/bin/rm" <<EOF
 #!/usr/bin/env bash
@@ -412,7 +422,7 @@ for race_n in 1 2; do
   (
     until [ -e "$race_dir/go" ]; do :; done
     cd "$HOST" && \
-    PATH="$race_dir/bin:$PATH" \
+    PATH="$race_dir/bin:$race_path" \
     PIERLESS_REPO="$HOST" \
     PIERLESS_LOG="$race_dir/log$race_n" \
     PIERLESS_LOCK_DIR="$race_lock" \
@@ -425,7 +435,8 @@ done
 touch "$race_dir/go"
 for race_pid in $race_pids; do wait "$race_pid"; done
 race_fetches="$(tr '\n' ' ' < "$race_dir/fetches")"
-assert_not_contains "$race_fetches" "start start" "two waiters, one dead lock: fetches never overlap"
+race_logs="$(cat "$race_dir/log1" "$race_dir/log2" 2>/dev/null | tr '\n' '|')"
+assert_not_contains "$race_fetches" "start start" "two waiters, one dead lock: fetches never overlap (lock logs: $race_logs)"
 assert_contains "$race_fetches" "start end" "two waiters, one dead lock: one deploy ran"
 
 # --- dead-pid lock whose break guard is held by a LIVE deploy: waiter waits, exits 3 ---
@@ -442,10 +453,21 @@ assert_exit 3 "$DEPLOY_EXIT" "break guard held: waiter exits 3 and does not remo
 [ -d "$guard_lock" ]
 assert_true "$?" "break guard held: lock left in place"
 
+# --- dead-pid lock plus a FRESH pid-less guard: its holder may be mid-write ---
+# sleep is stubbed, so the old wait-count rule cleared it on the second pass
+# and two waiters could hold the guard together.
+new_fixture
+fresh_lock="$(new_tmpdir)/lock"
+mkdir -p "$fresh_lock" "$fresh_lock.break"
+( sleep 0.1 & echo $! > "$fresh_lock/pid" )
+run_deploy env PIERLESS_LOCK_DIR="$fresh_lock"
+assert_exit 3 "$DEPLOY_EXIT" "fresh pid-less break guard: waiter does not clear it, exits 3"
+assert_not_contains "$DEPLOY_LOG" "stale break guard removed" "fresh pid-less break guard: not cleared"
+
 # --- dead-pid lock plus a break guard left by a killed deploy ----------
 # Two shapes: killed after writing its pid (dead pid), and killed between
-# mkdir and the pid write (bare folder, cleared once a full sleep has passed;
-# sleep is stubbed here, so that happens on the second pass).
+# mkdir and the pid write (bare folder, cleared once its mtime is 5s old; the
+# stubbed sleep does not age it, so the bare one is back-dated with touch -t).
 for guard_shape in dead-pid bare; do
   new_fixture
   push_commit_from_dev "stale-guard $guard_shape commit"
@@ -453,6 +475,7 @@ for guard_shape in dead-pid bare; do
   mkdir -p "$crash_lock" "$crash_lock.break"
   ( sleep 0.1 & echo $! > "$crash_lock/pid" )
   [ "$guard_shape" = "dead-pid" ] && cp "$crash_lock/pid" "$crash_lock.break/pid"
+  [ "$guard_shape" = "bare" ] && touch -t 202001010000 "$crash_lock.break"
   run_deploy env PIERLESS_LOCK_DIR="$crash_lock"
   assert_exit 0 "$DEPLOY_EXIT" "stale break guard ($guard_shape): deploy proceeds"
   assert_contains "$DEPLOY_LOG" "stale break guard removed" "stale break guard ($guard_shape): log names the removal"
