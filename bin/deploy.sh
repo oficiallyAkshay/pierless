@@ -522,7 +522,12 @@ until mkdir "${LOCK_DIR}" 2>/dev/null; do
       log "${STALE_MSG}"
       rm -rf "${LOCK_DIR}" 2>/dev/null || true
     fi
-    rm -rf "${LOCK_BREAK_DIR}" 2>/dev/null || true
+    # Release the guard only while it still holds our pid. A waiter that lost it
+    # must leave the new holder's guard alone: removing it lets a third taker in
+    # while the holder's removal of the lock is still running.
+    if [ "$(cat "${LOCK_BREAK_DIR}/pid" 2>/dev/null || true)" = "$$" ]; then
+      rm -rf "${LOCK_BREAK_DIR}" 2>/dev/null || true
+    fi
     continue
   fi
   if [ "${LOCK_WAITED}" -ge 600 ]; then
