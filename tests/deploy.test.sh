@@ -425,6 +425,7 @@ for race_n in 1 2; do
     PATH="$race_dir/bin:$race_path" \
     PIERLESS_REPO="$HOST" \
     PIERLESS_LOG="$race_dir/log$race_n" \
+    PIERLESS_DEBUG=1 \
     PIERLESS_LOCK_DIR="$race_lock" \
     PIERLESS_STATE_DIR="$race_dir/state$race_n" \
     GITHUB_OUTPUT="$race_dir/out$race_n" \
@@ -460,7 +461,19 @@ new_fixture
 fresh_lock="$(new_tmpdir)/lock"
 mkdir -p "$fresh_lock" "$fresh_lock.break"
 ( sleep 0.1 & echo $! > "$fresh_lock/pid" )
+# A background loop touches the guard until the deploy exits, so it stays fresh
+# on a slow runner: it models a holder that is still writing.
+fresh_done="$(new_tmpdir)/done"
+(
+  while [ ! -e "$fresh_done" ]; do
+    touch "$fresh_lock.break"
+    /bin/sleep 0.2
+  done
+) &
+fresh_toucher=$!
 run_deploy env PIERLESS_LOCK_DIR="$fresh_lock"
+touch "$fresh_done"
+wait "$fresh_toucher"
 assert_exit 3 "$DEPLOY_EXIT" "fresh pid-less break guard: waiter does not clear it, exits 3"
 assert_not_contains "$DEPLOY_LOG" "stale break guard removed" "fresh pid-less break guard: not cleared"
 

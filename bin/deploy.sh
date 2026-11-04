@@ -504,6 +504,7 @@ until mkdir "${LOCK_DIR}" 2>/dev/null; do
     # protect a live lock if two waiters clear it together.
     guard_pid="$(cat "${LOCK_BREAK_DIR}/pid" 2>/dev/null || true)"
     guard_age="$(dir_age "${LOCK_BREAK_DIR}")"
+    debug "break guard seen: pid=${guard_pid:-none} age=${guard_age:-unknown} self=$$"
     if [ -d "${LOCK_BREAK_DIR}" ] && {
          { [ -n "${guard_pid}" ] && ! kill -0 "${guard_pid}" 2>/dev/null; } ||
          { [ -z "${guard_pid}" ] && [ -n "${guard_age}" ] && [ "${guard_age}" -ge 5 ]; }; }; then
@@ -515,7 +516,9 @@ until mkdir "${LOCK_DIR}" 2>/dev/null; do
     echo "$$" > "${LOCK_BREAK_DIR}/pid" 2>/dev/null || true
     # Our pid must still be in the guard: if another waiter cleared our guard
     # and made its own, that waiter removes the lock, not us.
-    if lock_is_stale && [ "$(cat "${LOCK_BREAK_DIR}/pid" 2>/dev/null || true)" = "$$" ]; then
+    guard_pid="$(cat "${LOCK_BREAK_DIR}/pid" 2>/dev/null || true)"
+    debug "break guard taken: pid read=${guard_pid:-none} self=$$"
+    if lock_is_stale && [ "${guard_pid}" = "$$" ]; then
       log "${STALE_MSG}"
       rm -rf "${LOCK_DIR}" 2>/dev/null || true
     fi
