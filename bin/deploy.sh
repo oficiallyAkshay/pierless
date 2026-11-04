@@ -495,17 +495,22 @@ dir_age() {
 }
 until mkdir "${LOCK_DIR}" 2>/dev/null; do
   if lock_is_stale; then
-    # The guard is held for milliseconds. One older than a minute belongs to a
-    # deploy killed inside that window; it would block every later removal, so
-    # it is cleared. The owner re-check under the guard still protects a live
-    # lock if two waiters clear it together.
-    guard_age="$(dir_age "${LOCK_BREAK_DIR}")"
-    if [ -n "${guard_age}" ] && [ "${guard_age}" -ge 60 ]; then
+    # The guard is held for milliseconds, and its holder writes its pid into
+    # it. A guard whose holder is dead, or one still without a pid after we
+    # have waited a full sleep, belongs to a deploy killed inside that window;
+    # it would block every later removal, so it is cleared. The owner re-check
+    # under the guard still protects a live lock if two waiters clear it
+    # together.
+    guard_pid="$(cat "${LOCK_BREAK_DIR}/pid" 2>/dev/null || true)"
+    if [ -d "${LOCK_BREAK_DIR}" ] && {
+         { [ -n "${guard_pid}" ] && ! kill -0 "${guard_pid}" 2>/dev/null; } ||
+         { [ -z "${guard_pid}" ] && [ "${LOCK_WAITED}" -ge 5 ]; }; }; then
       log "stale break guard removed"
       rm -rf "${LOCK_BREAK_DIR}" 2>/dev/null || true
     fi
   fi
   if lock_is_stale && mkdir "${LOCK_BREAK_DIR}" 2>/dev/null; then
+    echo "$$" > "${LOCK_BREAK_DIR}/pid" 2>/dev/null || true
     if lock_is_stale; then
       log "${STALE_MSG}"
       rm -rf "${LOCK_DIR}" 2>/dev/null || true

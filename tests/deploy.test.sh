@@ -428,28 +428,36 @@ race_fetches="$(tr '\n' ' ' < "$race_dir/fetches")"
 assert_not_contains "$race_fetches" "start start" "two waiters, one dead lock: fetches never overlap"
 assert_contains "$race_fetches" "start end" "two waiters, one dead lock: one deploy ran"
 
-# --- dead-pid lock whose break guard is already held: waiter waits, exits 3 ---
+# --- dead-pid lock whose break guard is held by a LIVE deploy: waiter waits, exits 3 ---
 new_fixture
 guard_lock="$(new_tmpdir)/lock"
 mkdir -p "$guard_lock" "$guard_lock.break"
 ( sleep 0.1 & echo $! > "$guard_lock/pid" )
-sleep 1
+/bin/sleep 60 &
+guard_holder=$!
+echo "$guard_holder" > "$guard_lock.break/pid"
 run_deploy env PIERLESS_LOCK_DIR="$guard_lock"
+kill "$guard_holder" >/dev/null 2>&1 || true
 assert_exit 3 "$DEPLOY_EXIT" "break guard held: waiter exits 3 and does not remove the lock"
 [ -d "$guard_lock" ]
 assert_true "$?" "break guard held: lock left in place"
 
-# --- dead-pid lock plus a break guard left by a killed deploy (aged) ----
-new_fixture
-push_commit_from_dev "stale-guard commit"
-crash_lock="$(new_tmpdir)/lock"
-mkdir -p "$crash_lock" "$crash_lock.break"
-( sleep 0.1 & echo $! > "$crash_lock/pid" )
-touch -t 202001010000 "$crash_lock.break"
-run_deploy env PIERLESS_LOCK_DIR="$crash_lock"
-assert_exit 0 "$DEPLOY_EXIT" "stale break guard: deploy proceeds"
-assert_contains "$DEPLOY_LOG" "stale break guard removed" "stale break guard: log names the removal"
-assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "stale break guard: deploy actually pulled"
+# --- dead-pid lock plus a break guard left by a killed deploy ----------
+# Two shapes: killed after writing its pid (dead pid), and killed between
+# mkdir and the pid write (bare folder, cleared once a full sleep has passed;
+# sleep is stubbed here, so that happens on the second pass).
+for guard_shape in dead-pid bare; do
+  new_fixture
+  push_commit_from_dev "stale-guard $guard_shape commit"
+  crash_lock="$(new_tmpdir)/lock"
+  mkdir -p "$crash_lock" "$crash_lock.break"
+  ( sleep 0.1 & echo $! > "$crash_lock/pid" )
+  [ "$guard_shape" = "dead-pid" ] && cp "$crash_lock/pid" "$crash_lock.break/pid"
+  run_deploy env PIERLESS_LOCK_DIR="$crash_lock"
+  assert_exit 0 "$DEPLOY_EXIT" "stale break guard ($guard_shape): deploy proceeds"
+  assert_contains "$DEPLOY_LOG" "stale break guard removed" "stale break guard ($guard_shape): log names the removal"
+  assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "stale break guard ($guard_shape): deploy actually pulled"
+done
 
 # --- PIERLESS_REPO unset -> bad config ---
 new_fixture
