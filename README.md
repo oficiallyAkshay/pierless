@@ -63,11 +63,13 @@ Install it by cloning this repo onto the Mac and running its install command, wh
 The installer needs `gh` signed in once. It mints a runner registration token, used immediately and never written to disk. The deploy step uses only `GITHUB_TOKEN`. It already has one, granted to its own run.
 
 - ❌ opens an inbound port
-- ❌ calls out before the gate decides whether a job may run
+- ❌ makes a network call from the gate
 - ❌ force-resets a diverged checkout
 - ❌ overwrites uncommitted edits it has not just stashed
 - ❌ writes the runner's registration token to disk
 - ❌ sends telemetry
+
+One limit remains: the runner downloads the `uses:` actions of a job into `_work/_actions` before the gate refuses it, so a refused job can leave downloaded files on disk as the runner's user. Only code that can reach the runner's job queue can trigger this, nothing from the download runs, and the files stay in `_work`.
 
 By default a failed deploy runs nothing. `on_failure` names the alert, `on_recovery` the all-clear. By default finished worktrees are pruned; `prune_worktrees: false` keeps them. By default dependencies reinstall only where a manifest changed; `install: none` turns that off.
 

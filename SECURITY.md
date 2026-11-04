@@ -20,3 +20,9 @@ token, used once at install time and never stored, and the
 `GITHUB_TOKEN` the deploy workflow already has. The gate itself
 makes no network calls and runs no external command beyond bash
 builtins.
+
+One residual risk: the runner downloads the `uses:` actions of a job into
+`_work/_actions` before the gate runs, so a refused job can leave
+downloaded files on disk as the runner's user. Only code that can reach
+the runner's job queue can trigger this, nothing from the download runs,
+and the files stay in `_work`.
