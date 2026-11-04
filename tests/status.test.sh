@@ -141,8 +141,45 @@ assert_contains "$STATUS_STDOUT" "line four" "deploy log: tail includes line fou
 assert_not_contains "$STATUS_STDOUT" "line one" "deploy log: tail -n3 excludes line one"
 
 # --- deploy log: missing file says so ---
-run_status -- --runner-dir "$(new_tmpdir)/runner"
+run_status HOME="$(new_tmpdir)" -- --runner-dir "$(new_tmpdir)/runner"
 assert_contains "$STATUS_STDOUT" "no log at" "deploy log missing: says so"
+
+# --- deploy log: PIERLESS_LOG unset reads $HOME/.pierless/deploy.log, not runner.log ---
+home_dir="$(new_tmpdir)"
+mkdir -p "$home_dir/.pierless" "$home_dir/runner"
+printf 'PULLED 2 commit(s)\n' > "$home_dir/.pierless/deploy.log"
+printf 'runner output only\n' > "$home_dir/runner/runner.log"
+run_status HOME="$home_dir" -- --runner-dir "$home_dir/runner"
+assert_contains "$STATUS_STDOUT" "PULLED 2 commit(s)" "deploy log default: reads HOME/.pierless/deploy.log"
+assert_not_contains "$STATUS_STDOUT" "runner output only" "deploy log default: does not read runner.log"
+run_status HOME="$home_dir" PIERLESS_LOG="$log_file" -- --runner-dir "$home_dir/runner"
+assert_contains "$STATUS_STDOUT" "line four" "deploy log: PIERLESS_LOG overrides the default"
+assert_not_contains "$STATUS_STDOUT" "PULLED 2 commit(s)" "deploy log: override hides the default log"
+
+# --- last-failed marker: present, then absent ---
+state_dir="$(new_tmpdir)"
+printf 'failed-run-marker-42\n' > "$state_dir/last-failed"
+run_status HOME="$home_dir" PIERLESS_STATE_DIR="$state_dir" -- --runner-dir "$home_dir/runner"
+assert_contains "$STATUS_STDOUT" "failed-run-marker-42" "last failed: prints the marker content"
+run_status HOME="$home_dir" PIERLESS_STATE_DIR="$(new_tmpdir)" -- --runner-dir "$home_dir/runner"
+assert_contains "$STATUS_STDOUT" "== last failed ==" "last failed absent: heading shown"
+assert_contains "$STATUS_STDOUT" "none" "last failed absent: says none"
+assert_exit 0 "$STATUS_EXIT" "fresh install: status exits 0 with no log, marker or sha file"
+
+# --- hooks: last-hooked-sha versus HEAD (match, differ, missing) ---
+git_repo="$(new_tmpdir)/checkout"
+git init -q "$git_repo"
+git -C "$git_repo" -c user.name=t -c user.email=t@example.test commit -q --allow-empty -m one
+head_sha="$(git -C "$git_repo" rev-parse HEAD)"
+sha_state="$(new_tmpdir)"
+printf '%s\n' "$head_sha" > "$sha_state/last-hooked-sha"
+run_status HOME="$home_dir" PIERLESS_STATE_DIR="$sha_state" PIERLESS_REPO="$git_repo" -- --runner-dir "$home_dir/runner"
+assert_contains "$STATUS_STDOUT" "hooks: match" "hooks: marker equal to HEAD says match"
+printf 'deadbeef\n' > "$sha_state/last-hooked-sha"
+run_status HOME="$home_dir" PIERLESS_STATE_DIR="$sha_state" PIERLESS_REPO="$git_repo" -- --runner-dir "$home_dir/runner"
+assert_contains "$STATUS_STDOUT" "hooks: differ" "hooks: marker not equal to HEAD says differ"
+run_status HOME="$home_dir" PIERLESS_STATE_DIR="$(new_tmpdir)" PIERLESS_REPO="$git_repo" -- --runner-dir "$home_dir/runner"
+assert_contains "$STATUS_STDOUT" "no last-hooked-sha marker" "hooks: no marker says missing"
 
 # --- last refusal: newest Runner_*.log's last refusal line ---
 diag_runner_dir="$(new_tmpdir)/runner"
