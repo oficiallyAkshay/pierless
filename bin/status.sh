@@ -3,7 +3,8 @@
 #
 # Prints: launchd state and pid, GitHub-side runner status (when --repo is
 # given or the runner dir's own registration is readable), the tail of the
-# deploy log, and the last refusal line from the newest diag log, if any.
+# deploy log (default $HOME/.pierless/deploy.log, as deploy.sh), the
+# last-failed marker, whether hooks finished for HEAD, and the last refusal line from the newest diag log, if any.
 #
 # Usage: status.sh [--repo <owner/name>] [--runner-dir <path>]
 
@@ -50,11 +51,40 @@ else
 fi
 
 echo "== deploy log =="
-LOG_PATH="${PIERLESS_LOG:-${RUNNER_DIR}/runner.log}"
+LOG_PATH="${PIERLESS_LOG:-${HOME:-$PWD}/.pierless/deploy.log}"
 if [ -f "${LOG_PATH}" ]; then
   tail -n 3 "${LOG_PATH}"
 else
   echo "no log at ${LOG_PATH}"
+fi
+
+# Same state folder and marker names as bin/deploy.sh and action.yml.
+STATE_DIR="${PIERLESS_STATE_DIR:-${HOME:-$PWD}/.pierless}"
+
+echo "== last failed =="
+if [ -s "${STATE_DIR}/last-failed" ]; then
+  cat "${STATE_DIR}/last-failed"
+else
+  echo "none"
+fi
+
+echo "== hooks =="
+HOOKED_SHA=""
+if [ -f "${STATE_DIR}/last-hooked-sha" ]; then
+  HOOKED_SHA="$(tr -d '[:space:]' < "${STATE_DIR}/last-hooked-sha" 2>/dev/null || true)"
+fi
+HEAD_SHA=""
+if [ -n "${PIERLESS_REPO:-}" ]; then
+  HEAD_SHA="$(git -C "${PIERLESS_REPO}" rev-parse HEAD 2>/dev/null || true)"
+fi
+if [ -z "${HOOKED_SHA}" ]; then
+  echo "hooks: no last-hooked-sha marker at ${STATE_DIR}/last-hooked-sha"
+elif [ -z "${HEAD_SHA}" ]; then
+  echo "hooks: last hooked ${HOOKED_SHA}, HEAD unknown (set PIERLESS_REPO)"
+elif [ "${HOOKED_SHA}" = "${HEAD_SHA}" ]; then
+  echo "hooks: match, finished for HEAD ${HEAD_SHA}"
+else
+  echo "hooks: differ, last hooked ${HOOKED_SHA} but HEAD is ${HEAD_SHA}"
 fi
 
 echo "== last refusal =="
