@@ -454,16 +454,25 @@ fi
 # 600s cap when no pid file was ever written) is stale, removed, and retried
 # immediately rather than counted against the wait budget. A LIVE owner
 # still makes us wait out the full 600s cap before we give up.
+#
+# Checking a lock stale and removing it are two steps, so two waiters could
+# both see the same dead owner, and the slower one would then delete the
+# faster one's NEW live lock. Removal therefore takes a second mkdir lock
+# (LOCK_DIR.break) and checks staleness again while holding it: a waiter that
+# loses the guard just waits, and one that wins sees the new owner is live.
 LOCK_PID_FILE="${LOCK_DIR}/pid"
+LOCK_BREAK_DIR="${LOCK_DIR}.break"
 LOCK_ACQUIRED=0
 LOCK_WAITED=0
-until mkdir "${LOCK_DIR}" 2>/dev/null; do
+STALE_MSG=""
+# lock_is_stale — 0 and sets STALE_MSG when the lock's owner is gone.
+lock_is_stale() {
+  local owner_pid lock_mtime
   if [ -f "${LOCK_PID_FILE}" ]; then
     owner_pid="$(cat "${LOCK_PID_FILE}" 2>/dev/null || true)"
     if [ -n "${owner_pid}" ] && ! kill -0 "${owner_pid}" 2>/dev/null; then
-      log "stale lock from pid ${owner_pid} removed"
-      rm -rf "${LOCK_DIR}" 2>/dev/null || true
-      continue
+      STALE_MSG="stale lock from pid ${owner_pid} removed"
+      return 0
     fi
   elif [ -e "${LOCK_DIR}" ]; then
     # GNU stat first: on Linux `stat -f %m` is the filesystem's mount point,
@@ -472,10 +481,20 @@ until mkdir "${LOCK_DIR}" 2>/dev/null; do
     lock_mtime="$(stat -c %Y "${LOCK_DIR}" 2>/dev/null || stat -f %m "${LOCK_DIR}" 2>/dev/null || echo "")"
     case "${lock_mtime}" in *[!0-9]*|"") lock_mtime="" ;; esac
     if [ -n "${lock_mtime}" ] && [ $(( $(date +%s) - lock_mtime )) -ge 600 ]; then
-      log "stale lock with no pid file removed"
-      rm -rf "${LOCK_DIR}" 2>/dev/null || true
-      continue
+      STALE_MSG="stale lock with no pid file removed"
+      return 0
     fi
+  fi
+  return 1
+}
+until mkdir "${LOCK_DIR}" 2>/dev/null; do
+  if lock_is_stale && mkdir "${LOCK_BREAK_DIR}" 2>/dev/null; then
+    if lock_is_stale; then
+      log "${STALE_MSG}"
+      rm -rf "${LOCK_DIR}" 2>/dev/null || true
+    fi
+    rmdir "${LOCK_BREAK_DIR}" 2>/dev/null || true
+    continue
   fi
   if [ "${LOCK_WAITED}" -ge 600 ]; then
     log "another deploy has held the lock for 10 minutes — refusing"

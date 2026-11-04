@@ -376,6 +376,69 @@ assert_contains "$DEPLOY_LOG" "stale lock with no pid file removed" "stale lock,
 assert_exit 0 "$DEPLOY_EXIT" "stale lock, no pid file: deploy still proceeds"
 assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "stale lock, no pid file: deploy actually pulled"
 
+# --- two waiters, one dead-pid lock: only one deploy runs at a time -----
+# Wrapper rm/git on a private PATH make the race deterministic. The first two
+# `rm -rf <lock>` calls pause 1s and 3s, so both waiters have read the dead pid
+# before either removes; on the old code the slower one then deletes the
+# faster one's live lock, and the two `git fetch` windows (3s each) overlap.
+new_fixture
+race_dir="$(new_tmpdir)"
+race_lock="$race_dir/lock"
+mkdir -p "$race_lock" "$race_dir/bin"
+( sleep 0.1 & echo $! > "$race_lock/pid" )
+sleep 1
+race_real_git="$(command -v git)"
+cat > "$race_dir/bin/rm" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = "-rf" ] && [ "\$2" = "$race_lock" ]; then
+  if mkdir "$race_dir/rm1" 2>/dev/null; then /bin/sleep 1
+  elif mkdir "$race_dir/rm2" 2>/dev/null; then /bin/sleep 3
+  fi
+fi
+exec /bin/rm "\$@"
+EOF
+cat > "$race_dir/bin/git" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = "fetch" ]; then
+  echo start >> "$race_dir/fetches"
+  /bin/sleep 3
+  echo end >> "$race_dir/fetches"
+fi
+exec "$race_real_git" "\$@"
+EOF
+chmod +x "$race_dir/bin/rm" "$race_dir/bin/git"
+race_pids=""
+for race_n in 1 2; do
+  (
+    until [ -e "$race_dir/go" ]; do :; done
+    cd "$HOST" && \
+    PATH="$race_dir/bin:$PATH" \
+    PIERLESS_REPO="$HOST" \
+    PIERLESS_LOG="$race_dir/log$race_n" \
+    PIERLESS_LOCK_DIR="$race_lock" \
+    PIERLESS_STATE_DIR="$race_dir/state$race_n" \
+    GITHUB_OUTPUT="$race_dir/out$race_n" \
+    bash "$DEPLOY_SCRIPT" >/dev/null 2>&1
+  ) &
+  race_pids="$race_pids $!"
+done
+touch "$race_dir/go"
+for race_pid in $race_pids; do wait "$race_pid"; done
+race_fetches="$(tr '\n' ' ' < "$race_dir/fetches")"
+assert_not_contains "$race_fetches" "start start" "two waiters, one dead lock: fetches never overlap"
+assert_contains "$race_fetches" "start end" "two waiters, one dead lock: one deploy ran"
+
+# --- dead-pid lock whose break guard is already held: waiter waits, exits 3 ---
+new_fixture
+guard_lock="$(new_tmpdir)/lock"
+mkdir -p "$guard_lock" "$guard_lock.break"
+( sleep 0.1 & echo $! > "$guard_lock/pid" )
+sleep 1
+run_deploy env PIERLESS_LOCK_DIR="$guard_lock"
+assert_exit 3 "$DEPLOY_EXIT" "break guard held: waiter exits 3 and does not remove the lock"
+[ -d "$guard_lock" ]
+assert_true "$?" "break guard held: lock left in place"
+
 # --- PIERLESS_REPO unset -> bad config ---
 new_fixture
 out="$(mktemp)"; err="$(mktemp)"
