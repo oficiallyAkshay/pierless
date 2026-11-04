@@ -493,7 +493,7 @@ until mkdir "${LOCK_DIR}" 2>/dev/null; do
       log "${STALE_MSG}"
       rm -rf "${LOCK_DIR}" 2>/dev/null || true
     fi
-    rmdir "${LOCK_BREAK_DIR}" 2>/dev/null || true
+    rm -rf "${LOCK_BREAK_DIR}" 2>/dev/null || true
     continue
   fi
   if [ "${LOCK_WAITED}" -ge 600 ]; then
