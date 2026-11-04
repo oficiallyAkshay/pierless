@@ -2,6 +2,7 @@
 
 One line per merged change, newest first. No version numbers here.
 
+- Two deploys that wait on one stale lock can no longer both take it: removal runs under a second lock and checks the owner again first.
 - A pulled deploy logs the commit it left and the commit it reached, and the architecture doc says how to roll back.
 - A dry run changes nothing and prints one plan line per step.
 - The action's state directory defaults to the real home folder, and a deploy leaves the checkout clean.
