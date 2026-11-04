@@ -12,6 +12,12 @@ if [ "${PIERLESS_EXIT_CODE:-1}" = "0" ]; then
 else
   text="Deploy failed (exit ${PIERLESS_EXIT_CODE:-?}): ${PIERLESS_REASON:-see the run log} — ${PIERLESS_RUN_URL:-unknown run}"
 fi
+# JSON-escape the text: backslash first, then quote, newline, return, tab.
+text="${text//\\/\\\\}"
+text="${text//\"/\\\"}"
+text="${text//$'\n'/\\n}"
+text="${text//$'\r'/\\r}"
+text="${text//$'\t'/\\t}"
 curl -fsS -X POST -H 'Content-Type: application/json' \
-  -d "$(printf '{"text":"%s"}' "${text//\"/\\\"}")" \
+  -d "$(printf '{"text":"%s"}' "${text}")" \
   "${SLACK_WEBHOOK_URL}" >/dev/null
