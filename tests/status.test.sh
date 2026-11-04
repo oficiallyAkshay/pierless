@@ -180,6 +180,8 @@ run_status HOME="$home_dir" PIERLESS_STATE_DIR="$sha_state" PIERLESS_REPO="$git_
 assert_contains "$STATUS_STDOUT" "hooks: differ" "hooks: marker not equal to HEAD says differ"
 run_status HOME="$home_dir" PIERLESS_STATE_DIR="$(new_tmpdir)" PIERLESS_REPO="$git_repo" -- --runner-dir "$home_dir/runner"
 assert_contains "$STATUS_STDOUT" "no last-hooked-sha marker" "hooks: no marker says missing"
+run_status HOME="$home_dir" PIERLESS_STATE_DIR="$sha_state" PIERLESS_REPO= -- --runner-dir "$home_dir/runner"
+assert_contains "$STATUS_STDOUT" "HEAD unknown" "hooks: marker present but no PIERLESS_REPO says HEAD unknown"
 
 # --- last refusal: newest Runner_*.log's last refusal line ---
 diag_runner_dir="$(new_tmpdir)/runner"
