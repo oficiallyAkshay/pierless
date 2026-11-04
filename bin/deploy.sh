@@ -467,7 +467,7 @@ LOCK_WAITED=0
 STALE_MSG=""
 # lock_is_stale — 0 and sets STALE_MSG when the lock's owner is gone.
 lock_is_stale() {
-  local owner_pid lock_mtime
+  local owner_pid age
   if [ -f "${LOCK_PID_FILE}" ]; then
     owner_pid="$(cat "${LOCK_PID_FILE}" 2>/dev/null || true)"
     if [ -n "${owner_pid}" ] && ! kill -0 "${owner_pid}" 2>/dev/null; then
@@ -475,19 +475,36 @@ lock_is_stale() {
       return 0
     fi
   elif [ -e "${LOCK_DIR}" ]; then
-    # GNU stat first: on Linux `stat -f %m` is the filesystem's mount point,
-    # not an mtime, and BSD stat rejects -c, so each form fails cleanly on the
-    # other platform. A non-numeric answer is treated as unknown, never aged.
-    lock_mtime="$(stat -c %Y "${LOCK_DIR}" 2>/dev/null || stat -f %m "${LOCK_DIR}" 2>/dev/null || echo "")"
-    case "${lock_mtime}" in *[!0-9]*|"") lock_mtime="" ;; esac
-    if [ -n "${lock_mtime}" ] && [ $(( $(date +%s) - lock_mtime )) -ge 600 ]; then
+    age="$(dir_age "${LOCK_DIR}")"
+    if [ -n "${age}" ] && [ "${age}" -ge 600 ]; then
       STALE_MSG="stale lock with no pid file removed"
       return 0
     fi
   fi
   return 1
 }
+# dir_age DIR — prints seconds since DIR's mtime; prints nothing when unknown.
+# GNU stat first: on Linux `stat -f %m` is the filesystem's mount point, not an
+# mtime, and BSD stat rejects -c, so each form fails cleanly on the other
+# platform. A non-numeric answer is treated as unknown, never aged.
+dir_age() {
+  local mtime
+  mtime="$(stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo "")"
+  case "${mtime}" in *[!0-9]*|"") return 0 ;; esac
+  echo $(( $(date +%s) - mtime ))
+}
 until mkdir "${LOCK_DIR}" 2>/dev/null; do
+  if lock_is_stale; then
+    # The guard is held for milliseconds. One older than a minute belongs to a
+    # deploy killed inside that window; it would block every later removal, so
+    # it is cleared. The owner re-check under the guard still protects a live
+    # lock if two waiters clear it together.
+    guard_age="$(dir_age "${LOCK_BREAK_DIR}")"
+    if [ -n "${guard_age}" ] && [ "${guard_age}" -ge 60 ]; then
+      log "stale break guard removed"
+      rm -rf "${LOCK_BREAK_DIR}" 2>/dev/null || true
+    fi
+  fi
   if lock_is_stale && mkdir "${LOCK_BREAK_DIR}" 2>/dev/null; then
     if lock_is_stale; then
       log "${STALE_MSG}"

@@ -439,6 +439,18 @@ assert_exit 3 "$DEPLOY_EXIT" "break guard held: waiter exits 3 and does not remo
 [ -d "$guard_lock" ]
 assert_true "$?" "break guard held: lock left in place"
 
+# --- dead-pid lock plus a break guard left by a killed deploy (aged) ----
+new_fixture
+push_commit_from_dev "stale-guard commit"
+crash_lock="$(new_tmpdir)/lock"
+mkdir -p "$crash_lock" "$crash_lock.break"
+( sleep 0.1 & echo $! > "$crash_lock/pid" )
+touch -t 202001010000 "$crash_lock.break"
+run_deploy env PIERLESS_LOCK_DIR="$crash_lock"
+assert_exit 0 "$DEPLOY_EXIT" "stale break guard: deploy proceeds"
+assert_contains "$DEPLOY_LOG" "stale break guard removed" "stale break guard: log names the removal"
+assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "stale break guard: deploy actually pulled"
+
 # --- PIERLESS_REPO unset -> bad config ---
 new_fixture
 out="$(mktemp)"; err="$(mktemp)"
