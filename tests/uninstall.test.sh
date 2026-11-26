@@ -100,6 +100,10 @@ else
 fi
 assert_contains "$UNINSTALL_STDOUT" "--repo is required" "missing --repo: clear line naming the missing flag"
 
+# plutil is a Mac-only tool: the stub reports $PLIST_WD as the installed
+# plist's WorkingDirectory.
+stub_bin plutil 'printf "%s" "${PLIST_WD:-}"'
+
 # --- loaded: bootout is called and logged ---
 stub_launchctl
 home1="$(new_tmpdir)"
@@ -108,7 +112,9 @@ state_file1="$(new_tmpdir)/state"
 calls_log1="$(new_tmpdir)/launchctl-calls.log"
 touch "$state_file1"
 : > "$calls_log1"
-run_uninstall HOME="$home1" LAUNCHCTL_STATE_FILE="$state_file1" LAUNCHCTL_CALLS_LOG="$calls_log1" \
+mkdir -p "$home1/Library/LaunchAgents"
+echo "<plist fixture/>" > "$home1/Library/LaunchAgents/pierless.runner.plist"
+run_uninstall HOME="$home1" PLIST_WD="$runner_dir1" LAUNCHCTL_STATE_FILE="$state_file1" LAUNCHCTL_CALLS_LOG="$calls_log1" \
   -- --repo owner/repo --runner-dir "$runner_dir1"
 assert_contains "$UNINSTALL_STDOUT" "booted out" "loaded: log says booted out"
 calls1="$(cat "$calls_log1")"
@@ -120,7 +126,9 @@ runner_dir2="$home2/.pierless/runner"
 state_file2="$(new_tmpdir)/state-never-created"
 calls_log2="$(new_tmpdir)/launchctl-calls.log"
 : > "$calls_log2"
-run_uninstall HOME="$home2" LAUNCHCTL_STATE_FILE="$state_file2" LAUNCHCTL_CALLS_LOG="$calls_log2" \
+mkdir -p "$home2/Library/LaunchAgents"
+echo "<plist fixture/>" > "$home2/Library/LaunchAgents/pierless.runner.plist"
+run_uninstall HOME="$home2" PLIST_WD="$runner_dir2" LAUNCHCTL_STATE_FILE="$state_file2" LAUNCHCTL_CALLS_LOG="$calls_log2" \
   -- --repo owner/repo --runner-dir "$runner_dir2"
 assert_contains "$UNINSTALL_STDOUT" "was not loaded" "not loaded: log says so"
 calls2="$(cat "$calls_log2")"
@@ -138,7 +146,7 @@ mkdir -p "$home3/Library/LaunchAgents"
 plist3="$home3/Library/LaunchAgents/pierless.runner.plist"
 echo "<plist fixture/>" > "$plist3"
 stub_gh_removal_ok
-run_uninstall HOME="$home3" CONFIG_CALLS_LOG="$config_calls3" \
+run_uninstall HOME="$home3" PLIST_WD="$runner_dir3" CONFIG_CALLS_LOG="$config_calls3" \
   -- --repo owner/repo --runner-dir "$runner_dir3"
 assert_exit 0 "$UNINSTALL_EXIT" "registered: exits 0"
 assert_contains "$UNINSTALL_STDOUT" "requesting a removal token for owner/repo" "registered: logs the removal-token request"
@@ -152,6 +160,40 @@ else
   pass "registered: deletes the installed plist"
 fi
 assert_contains "$UNINSTALL_STDOUT" "deleted $plist3" "registered: logs the plist deletion"
+
+# --- another directory's service: kept and not stopped; unprovable owners too ---
+home8="$(new_tmpdir)"
+runner_dir8="$home8/.pierless/spare"
+live_dir8="$home8/.pierless/runner"
+state_file8="$(new_tmpdir)/state"
+calls_log8="$(new_tmpdir)/launchctl-calls.log"
+touch "$state_file8"
+: > "$calls_log8"
+mkdir -p "$home8/Library/LaunchAgents"
+plist8="$home8/Library/LaunchAgents/pierless.runner.plist"
+echo "<plist fixture/>" > "$plist8"
+run_uninstall HOME="$home8" PLIST_WD="$live_dir8" LAUNCHCTL_STATE_FILE="$state_file8" LAUNCHCTL_CALLS_LOG="$calls_log8" \
+  -- --repo owner/repo --runner-dir "$runner_dir8"
+assert_exit 0 "$UNINSTALL_EXIT" "other dir's service: exits 0"
+assert_empty "$(cat "$calls_log8")" "other dir's service: launchctl bootout never called"
+if [ -f "$plist8" ] && [ -f "$state_file8" ]; then
+  pass "other dir's service: plist kept and service still loaded"
+else
+  fail "other dir's service: plist kept and service still loaded (touched)"
+fi
+assert_contains "$UNINSTALL_STDOUT" "leaving pierless.runner alone" "other dir's service: log says it was left alone"
+
+# plist with no WorkingDirectory: ownership unprovable, so nothing is touched
+: > "$calls_log8"
+run_uninstall HOME="$home8" PLIST_WD="" LAUNCHCTL_STATE_FILE="$state_file8" LAUNCHCTL_CALLS_LOG="$calls_log8" \
+  -- --repo owner/repo --runner-dir "$runner_dir8"
+assert_exit 0 "$UNINSTALL_EXIT" "plist without WorkingDirectory: exits 0"
+assert_empty "$(cat "$calls_log8")" "plist without WorkingDirectory: launchctl bootout never called"
+if [ -f "$plist8" ]; then
+  pass "plist without WorkingDirectory: plist kept"
+else
+  fail "plist without WorkingDirectory: plist kept (deleted)"
+fi
 
 # --- unauthenticated gh: refuses before touching the plist ---
 home4="$(new_tmpdir)"
