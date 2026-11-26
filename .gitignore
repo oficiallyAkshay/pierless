@@ -1,6 +1,7 @@
 # Build output.
 node_modules/
 coverage/
+.build-packages/
 
 # python3 -m pierless, which is how the tests reach the Python wrapper
 # without installing it, writes bytecode next to the wrapper.

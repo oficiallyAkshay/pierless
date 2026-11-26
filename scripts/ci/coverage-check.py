@@ -275,6 +275,7 @@ def main():
         if changed_total:
             changed_pct = round(100.0 * changed_covered / changed_total, 1)
 
+    os.makedirs(os.path.join(repo_root, "coverage"), exist_ok=True)
     with open(os.path.join(repo_root, "coverage", "summary.json"), "w") as f:
         json.dump({"total": total_pct, "changed": changed_pct, "changed_lines": changed_total}, f)
 

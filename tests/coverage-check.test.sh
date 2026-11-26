@@ -130,6 +130,17 @@ out="$(run_check --diff-file "$dir/diff-fail.txt" --min-changed 90 --min-total 4
 ec=$?
 assert_exit 1 "$ec" "min-total: still fails on --min-changed even when total passes"
 
+# --- no coverage/ folder yet: the check makes it for its summary ---
+nodir="$(new_tmpdir)"
+mkdir -p "$nodir/bin"
+cp "$dir/bin/deploy.sh" "$nodir/bin/"
+sed "s#$dir#$nodir#" "$dir/coverage/trace.log" > "$nodir/trace.log"
+nodir_out="$( (cd "$nodir" && python3 "$SCRIPT" --trace "$nodir/trace.log") 2>&1)"
+nodir_ec=$?
+assert_exit 0 "$nodir_ec" "no coverage folder: exits 0"
+assert_contains "$nodir_out" "total=50.0%" "no coverage folder: total still printed"
+assert_contains "$(cat "$nodir/coverage/summary.json" 2>/dev/null)" '"total": 50.0' "no coverage folder: summary.json written"
+
 # --- end-to-end: a real traced run of one small test file, through the
 # real tests/run.sh + scripts/ci/trace.sh, no fixture trace file ---
 e2e_dir="$(new_tmpdir)"
