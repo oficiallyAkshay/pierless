@@ -332,7 +332,7 @@ prune_worktrees() {
     return
   fi
   local pruned=0 skipped=0
-  local wt br wt_base lock_file merged_pr
+  local wt br wt_base lock_file merged_pr tip
   while IFS= read -r line; do
     case "${line}" in
       worktree*) wt="${line#worktree }" ;;
@@ -348,7 +348,9 @@ prune_worktrees() {
             log "worktree SKIP ${wt} (${br}) — locked by an active session"
             skipped=$((skipped + 1))
           elif [ -d "${wt}" ] && (cd "${wt}" && [ -z "$(git status --porcelain 2>/dev/null)" ]); then
-            merged_pr=$(gh pr list --head "${br}" --state merged --json number --jq '.[0].number // empty' 2>>"${LOG}")
+            # Only a merged PR whose head is this branch's tip counts: a reused name has other heads.
+            tip=$(git -C "${REPO}" rev-parse "refs/heads/${br}")
+            merged_pr=$(gh pr list --head "${br}" --state merged --json number,headRefOid --jq '.[] | "\(.number) \(.headRefOid)"' 2>>"${LOG}" | awk -v t="${tip}" '$2 == t { print $1; exit }')
             if [ -z "${merged_pr}" ]; then
               log "worktree SKIP ${wt} (${br}) — clean but no merged PR found, keeping"
               skipped=$((skipped + 1))
@@ -573,13 +575,8 @@ CURRENT_BRANCH=$(git symbolic-ref --short -q HEAD || echo "")
 if [ -n "${CURRENT_BRANCH}" ] && [ "${CURRENT_BRANCH}" != "${BRANCH}" ]; then
   if ! git rev-parse --verify --quiet "refs/remotes/origin/${CURRENT_BRANCH}" >/dev/null 2>&1; then
     log "SELF-HEAL: HEAD on ${CURRENT_BRANCH} (origin ref gone, likely squash-merged) — switching to ${BRANCH}"
-    if git checkout "${BRANCH}" >> "${LOG}" 2>&1; then
-      if git branch -D "${CURRENT_BRANCH}" >> "${LOG}" 2>&1; then
-        log "SELF-HEAL: deleted stale local branch ${CURRENT_BRANCH}"
-      else
-        log "SELF-HEAL: kept stale local branch ${CURRENT_BRANCH} (delete failed, non-fatal)"
-      fi
-    else
+    # The branch is kept: no remote copy also matches a branch never pushed.
+    if ! git checkout "${BRANCH}" >> "${LOG}" 2>&1; then
       log "SELF-HEAL FAILED: could not checkout ${BRANCH} from ${CURRENT_BRANCH}"
       write_output false 0
       exit 4

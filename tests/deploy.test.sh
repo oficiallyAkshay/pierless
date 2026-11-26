@@ -267,36 +267,21 @@ assert_contains "$DEPLOY_LOG" "SELF-HEAL FAILED: could not checkout main from fe
 after_selfheal_fail_branch="$(git -C "$HOST" symbolic-ref --short HEAD)"
 assert_eq "$before_selfheal_fail_branch" "$after_selfheal_fail_branch" "self-heal checkout failure: still stranded on the old branch"
 
-# --- stranded branch heals to main, but deleting the old branch fails ---
-# (checkout succeeds; only `git branch -D` fails — non-fatal, logged.)
+# --- checked-out branch that was never pushed: heals to main, keeps the branch ---
 new_fixture
 (
-  cd "$DEV" || exit 1
-  git checkout -q -b feature3
-  echo "feature3 work" >> README.md
-  git add README.md
-  git commit -q -m "feature3 commit"
-  git push -q origin feature3
-)
-(
   cd "$HOST" || exit 1
-  git fetch -q origin feature3
-  git checkout -q feature3
+  git checkout -q -b feature3
+  echo "feature3 unpushed work" >> README.md
+  git add README.md
+  git commit -q -m "feature3 unpushed commit"
 )
-(
-  cd "$DEV" || exit 1
-  git checkout -q main
-  git merge -q --squash feature3
-  git commit -q -m "squash-merge feature3"
-  git push -q origin main
-  git push -q origin --delete feature3
-)
-branchdeletefail_git="$(fake_git_failing 'branch -D feature3')"
-run_deploy env PATH="$branchdeletefail_git:$PATH"
-assert_exit 0 "$DEPLOY_EXIT" "self-heal, branch delete fails: exits 0 (checkout itself still worked)"
-branchdeletefail_current_branch="$(git -C "$HOST" symbolic-ref --short HEAD)"
-assert_eq "main" "$branchdeletefail_current_branch" "self-heal, branch delete fails: host still switched to main"
-assert_contains "$DEPLOY_LOG" "SELF-HEAL: kept stale local branch feature3 (delete failed, non-fatal)" "self-heal, branch delete fails: log names the non-fatal keep"
+unpushed_tip="$(git -C "$HOST" rev-parse feature3)"
+run_deploy env
+assert_exit 0 "$DEPLOY_EXIT" "never-pushed branch: exits 0"
+unpushed_current_branch="$(git -C "$HOST" symbolic-ref --short HEAD)"
+assert_eq "main" "$unpushed_current_branch" "never-pushed branch: host switched to main"
+assert_eq "$unpushed_tip" "$(git -C "$HOST" rev-parse --verify --quiet refs/heads/feature3 || echo gone)" "never-pushed branch: branch and its commit remain"
 
 # --- hook failure: exit 2, pull still happened, later hooks/prune still ran ---
 new_fixture
@@ -763,6 +748,7 @@ wt_merged="$(new_tmpdir)/wt-merged"
 wt_open="$(new_tmpdir)/wt-open"
 git -C "$HOST" worktree add -q -b feature-merged "$wt_merged" >/dev/null 2>&1
 git -C "$HOST" worktree add -q -b feature-open "$wt_open" >/dev/null 2>&1
+merged_tip="$(git -C "$HOST" rev-parse feature-merged)"
 stub_bin gh '
 case "$1" in
   pr)
@@ -773,7 +759,7 @@ case "$1" in
       prev="$a"
     done
     case "$head" in
-      feature-merged) echo "42" ;;
+      feature-merged) echo "42 '"$merged_tip"'" ;;
       *) echo "" ;;
     esac
     exit 0
@@ -807,12 +793,43 @@ else
   fail "worktree prune: open local branch kept (was deleted)"
 fi
 
+# --- worktree prune: reused name (other head), failed query, empty query all keep ---
+new_fixture
+push_commit_from_dev "worktree-reuse commit"
+wt_reuse="$(new_tmpdir)/wt-reuse"
+wt_qfail="$(new_tmpdir)/wt-qfail"
+git -C "$HOST" worktree add -q -b feature-reuse "$wt_reuse" >/dev/null 2>&1
+git -C "$HOST" worktree add -q -b feature-qfail "$wt_qfail" >/dev/null 2>&1
+stub_bin gh '
+case "$*" in
+  *feature-reuse*) echo "7 0000000000000000000000000000000000000000" ;;
+  *feature-qfail*) echo "gh: boom" >&2; exit 1 ;;
+esac
+exit 0
+'
+run_deploy env
+assert_exit 0 "$DEPLOY_EXIT" "worktree prune, other head / failed query: exits 0"
+for kept in "$wt_reuse" "$wt_qfail"; do
+  if [ -d "$kept" ]; then
+    pass "worktree prune, no matching head: $(basename "$kept") kept"
+  else
+    fail "worktree prune, no matching head: $(basename "$kept") kept (was removed)"
+  fi
+done
+for kept_br in feature-reuse feature-qfail; do
+  if git -C "$HOST" rev-parse --verify --quiet "refs/heads/$kept_br" >/dev/null 2>&1; then
+    pass "worktree prune, no matching head: $kept_br branch kept"
+  else
+    fail "worktree prune, no matching head: $kept_br branch kept (was deleted)"
+  fi
+done
+
 # --- worktree prune: merged+clean, but `git worktree remove` itself fails ---
 new_fixture
 push_commit_from_dev "worktree-prunefail commit"
 wt_prunefail="$(new_tmpdir)/wt-prunefail"
 git -C "$HOST" worktree add -q -b feature-prunefail "$wt_prunefail" >/dev/null 2>&1
-stub_bin gh 'echo "99"; exit 0'
+stub_bin gh 'echo "99 '"$(git -C "$HOST" rev-parse feature-prunefail)"'"; exit 0'
 prunefail_git="$(fake_git_failing '*worktree remove*')"
 run_deploy env PATH="$prunefail_git:$PATH"
 assert_exit 0 "$DEPLOY_EXIT" "worktree prune, remove fails: exits 0 (non-fatal, just skipped)"
