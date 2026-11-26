@@ -2,7 +2,9 @@
 # bin/uninstall-runner.sh — stop and deregister this Mac's runner.
 #
 # Boots the LaunchAgent out, removes the registration from GitHub with a
-# short-lived removal token, and deletes the plist. The runner directory
+# short-lived removal token, and deletes the plist. The service is booted out
+# and the plist deleted only when the installed plist's WorkingDirectory is
+# --runner-dir; another directory's service is left alone. The runner directory
 # itself (binary, work dir, hooks, .env) is left in place unless --purge is
 # given — undoing a registration should not silently delete a checkout's
 # worth of state.
@@ -39,11 +41,26 @@ log() { printf '[%s] %s\n' "$(ts)" "$*"; }
 
 INSTALLED_PLIST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
 
-if launchctl print "gui/$(id -u)/${LABEL}" >/dev/null 2>&1; then
-  launchctl bootout "gui/$(id -u)/${LABEL}"
-  log "booted out ${LABEL}"
-else
-  log "${LABEL} was not loaded"
+# The service is this run's only when the installed plist's WorkingDirectory
+# is --runner-dir (the installer's own check). Otherwise a spare or old
+# --runner-dir would stop and delete the live runner of another directory.
+OWNS_SERVICE=0
+if [ -f "${INSTALLED_PLIST}" ]; then
+  INSTALLED_WORKING_DIR="$(plutil -extract WorkingDirectory raw -o - "${INSTALLED_PLIST}" 2>/dev/null || true)"
+  if [ "${INSTALLED_WORKING_DIR}" = "${RUNNER_DIR}" ]; then
+    OWNS_SERVICE=1
+  else
+    log "leaving ${LABEL} alone: installed runner dir is ${INSTALLED_WORKING_DIR:-<unset>}, this run targets ${RUNNER_DIR}"
+  fi
+fi
+
+if [ "${OWNS_SERVICE}" -eq 1 ]; then
+  if launchctl print "gui/$(id -u)/${LABEL}" >/dev/null 2>&1; then
+    launchctl bootout "gui/$(id -u)/${LABEL}"
+    log "booted out ${LABEL}"
+  else
+    log "${LABEL} was not loaded"
+  fi
 fi
 
 if [ -f "${RUNNER_DIR}/.runner" ]; then
@@ -60,7 +77,7 @@ else
   log "${RUNNER_DIR}/.runner not found — nothing registered to remove"
 fi
 
-if [ -f "${INSTALLED_PLIST}" ]; then
+if [ "${OWNS_SERVICE}" -eq 1 ]; then
   rm -f "${INSTALLED_PLIST}"
   log "deleted ${INSTALLED_PLIST}"
 fi
