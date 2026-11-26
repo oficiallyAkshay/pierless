@@ -14,10 +14,12 @@ _PIERLESS_TRACED=1
 if [ "${BASH_VERSINFO[0]}" -gt 4 ] || { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -ge 1 ]; }; then
   exec {fd}>>"$PIERLESS_TRACE_FILE"
   BASH_XTRACEFD=$fd
-  PS4='+trace:${BASH_SOURCE}:${LINENO}:'
+  PS4='+trace:${BASH_SOURCE:-}:${LINENO}:'
   set -x
 else
   exec 9>>"$PIERLESS_TRACE_FILE"
   set -o functrace
-  trap 'printf "+trace:%s:%s:\n" "$BASH_SOURCE" "$LINENO" >&9' DEBUG
+  # ${BASH_SOURCE:-}: a `bash -c` step has no source file, and under its own
+  # set -u a bare $BASH_SOURCE would abort that step from inside this trap.
+  trap 'printf "+trace:%s:%s:\n" "${BASH_SOURCE:-}" "$LINENO" >&9' DEBUG
 fi

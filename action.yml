@@ -49,7 +49,7 @@ inputs:
     required: false
     default: ""
   kick:
-    description: Space-separated launchd labels to kickstart after a pull that moved HEAD. Empty skips.
+    description: Space-separated launchd labels to kickstart after a pull that moved HEAD, and on a run that resumes unfinished hooks. Empty skips.
     required: false
     default: ""
   prune_worktrees:

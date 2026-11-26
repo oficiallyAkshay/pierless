@@ -22,7 +22,8 @@
 #                             plist is bootstrapped its StandardOutPath and
 #                             StandardErrorPath directories are created.
 #   PIERLESS_KICK            space-separated launchd labels to kickstart -k
-#                             after any pull that moved HEAD; unset skips.
+#                             after any pull that moved HEAD, and again on a
+#                             run that resumes unfinished hooks; unset skips.
 #   PIERLESS_PRUNE_WORKTREES true (default) or false.
 #   PIERLESS_SELF_LABEL      default pierless.runner. A plist named for this
 #                             label is never loaded/unloaded from in here.
@@ -62,13 +63,14 @@
 #
 # Hook idempotency: the SHA whose hooks (install/services) and prune last
 # finished running is kept at PIERLESS_STATE_DIR/last-hooked-sha, written
-# only once they all finish. When that marker is present and does not
-# match current HEAD — even on a run that pulls nothing new — hooks run
-# again for <marker>..HEAD instead of being skipped, so a crash between a
-# fast-forward and its hooks finishing is caught up next run rather than
-# silently skipped forever. A failed hook leaves the marker where it was (a
-# first failure with no marker pins the pre-pull SHA), so every later run
-# retries and exits 2 until the hooks pass.
+# only once they all finish (a first deploy with no marker pins the pre-pull
+# SHA right after the pull, before any hook runs). When that marker is
+# present and does not match current HEAD — even on a run that pulls
+# nothing new — hooks and the kickstart run again for <marker>..HEAD
+# instead of being skipped, so a crash between a fast-forward and its hooks
+# finishing is caught up next run rather than silently skipped forever. A
+# failed hook or kickstart leaves the marker where it was, so every later
+# run retries and exits 2 until they pass.
 
 set -uo pipefail
 
@@ -428,6 +430,7 @@ if dry; then
     fi
     log "plan: fast-forward ${BEHIND} commit(s) to origin/${BRANCH}"
     DRY_PRE="${CURRENT_SHA}"
+    [ -z "${LAST_HOOKED_SHA}" ] && write_marker "${CURRENT_SHA}"
     if [ -n "${LAST_HOOKED_SHA}" ] && [ "${LAST_HOOKED_SHA}" != "${REMOTE_SHA}" ] \
        && git rev-parse --verify --quiet "${LAST_HOOKED_SHA}" >/dev/null 2>&1; then
       DRY_PRE="${LAST_HOOKED_SHA}"
@@ -437,7 +440,7 @@ if dry; then
   CHANGED=$(git diff --name-only "${DRY_PRE}" "${REMOTE_SHA}" 2>/dev/null)
   run_install_hooks "${DRY_PRE}" "${CHANGED}"
   run_service_hooks "${DRY_PRE}" "${REMOTE_SHA}"
-  [ "${BEHIND}" != "0" ] && run_kick
+  run_kick
   prune_worktrees
   write_marker "${REMOTE_SHA}"
   if [ "${PARKED_COUNT}" -gt 0 ] && [ "${BEHIND}" != "0" ] && [ -n "${PIERLESS_ON_PARK:-}" ]; then
@@ -610,6 +613,7 @@ if [ "${BEHIND}" = "0" ] && [ "${AHEAD}" = "0" ]; then
   CHANGED=$(git diff --name-only "${RESUME_PRE}" HEAD 2>>"${LOG}")
   run_install_hooks "${RESUME_PRE}" "${CHANGED}"
   run_service_hooks "${RESUME_PRE}"
+  run_kick
   prune_worktrees
   if [ "${HOOK_FAILED}" -eq 1 ]; then
     log "EXIT 2: a hook failed — see FAILED lines above (every remaining hook and the prune still ran)"
@@ -664,6 +668,10 @@ if git merge --ff-only "origin/${BRANCH}" >> "${LOG}" 2>&1; then
      && git rev-parse --verify --quiet "${LAST_HOOKED_SHA}" >/dev/null 2>&1; then
     HOOK_RANGE_PRE="${LAST_HOOKED_SHA}"
     log "hooks: resuming from ${LAST_HOOKED_SHA}"
+  elif [ -z "${LAST_HOOKED_SHA}" ]; then
+    # No marker yet: pin the pre-pull SHA before any hook runs, so a run
+    # killed or failed inside the hooks is resumed, not read as up to date.
+    write_marker "${PRE_MERGE_SHA}"
   fi
 
   CHANGED=$(git diff --name-only "${HOOK_RANGE_PRE}" HEAD 2>>"${LOG}")
@@ -671,13 +679,7 @@ if git merge --ff-only "origin/${BRANCH}" >> "${LOG}" 2>&1; then
   run_service_hooks "${HOOK_RANGE_PRE}"
   run_kick
   prune_worktrees
-  if [ "${HOOK_FAILED}" -eq 0 ]; then
-    write_marker "${NEW_HEAD}"
-  elif [ -z "${LAST_HOOKED_SHA}" ]; then
-    # First failure with no marker yet: pin the pre-pull SHA so the next run
-    # resumes these hooks instead of reporting up to date.
-    write_marker "${HOOK_RANGE_PRE}"
-  fi
+  [ "${HOOK_FAILED}" -eq 0 ] && write_marker "${NEW_HEAD}"
 
   if [ "${PARKED_COUNT}" -gt 0 ]; then
     names_joined="$(printf '%s' "${PARKED_FILES}" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')"

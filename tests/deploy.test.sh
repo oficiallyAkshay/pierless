@@ -1257,6 +1257,94 @@ assert_not_contains "$DEPLOY_LOG" "hooks: resuming" "hook idempotency (marker==H
 eqhead_calls_content="$(cat "$eqhead_calls" 2>/dev/null)"
 assert_empty "$eqhead_calls_content" "hook idempotency (marker==HEAD): no launchctl call on the up-to-date run"
 
+# --- a run killed before its restart: the next run restarts every daemon --
+# --- before it reports a deploy, and the dry-run plan lists the restart --
+stub_bin launchctl '
+echo "launchctl $*" >> "$LAUNCHCTL_CALLS_LOG"
+[ "$1" = kickstart ] && [ "${KICK_FAIL:-}" = 1 ] && exit 1
+exit 0'
+new_fixture
+push_commit_from_dev "killed-before-restart first commit"
+killkick_state_dir="$(new_tmpdir)/state"
+killkick_calls="$(new_tmpdir)/launchctl-calls.log"
+run_deploy env PIERLESS_STATE_DIR="$killkick_state_dir"
+killkick_c1="$(git -C "$HOST" rev-parse HEAD)"
+(
+  cd "$DEV" || exit 1
+  git pull -q origin main
+  echo '{"name":"fixture","v":5}' > package.json
+  git add package.json
+  git commit -q -m "bump package.json for the killed-before-restart case"
+  git push -q origin main
+)
+: > "$killkick_calls"
+# The hook kills deploy.sh itself: \$\$ reaches its eval unexpanded.
+LAUNCHCTL_CALLS_LOG="$killkick_calls" run_deploy env PIERLESS_STATE_DIR="$killkick_state_dir" \
+  PIERLESS_INSTALL="package.json=kill -9 \$\$" PIERLESS_KICK="daemon.one daemon.two"
+assert_not_contains "$(cat "$killkick_calls")" "kickstart" "killed before restart: the killed run never restarted a daemon"
+assert_eq "$killkick_c1" "$(cat "$killkick_state_dir/last-hooked-sha" 2>/dev/null)" "killed before restart: marker still names the earlier SHA"
+DEPLOY_ARGS="--dry-run" run_deploy env PIERLESS_STATE_DIR="$killkick_state_dir" PIERLESS_KICK="daemon.one daemon.two"
+assert_contains "$DEPLOY_STDOUT" "hooks would resume from ${killkick_c1}" "killed before restart: dry run plans a resume"
+assert_contains "$DEPLOY_STDOUT" "plan: hook: kickstart -k daemon.one daemon.two" "killed before restart: dry-run plan lists the restart"
+: > "$killkick_calls"
+LAUNCHCTL_CALLS_LOG="$killkick_calls" run_deploy env PIERLESS_STATE_DIR="$killkick_state_dir" \
+  PIERLESS_INSTALL="none" PIERLESS_KICK="daemon.one daemon.two"
+assert_exit 0 "$DEPLOY_EXIT" "killed before restart: resumed run exits 0"
+assert_contains "$DEPLOY_LOG" "hooks: resuming from ${killkick_c1}" "killed before restart: resumed run names the resume point"
+killkick_content="$(cat "$killkick_calls")"
+assert_contains "$killkick_content" "kickstart -k gui/$(id -u)/daemon.one" "killed before restart: resumed run restarts daemon.one"
+assert_contains "$killkick_content" "kickstart -k gui/$(id -u)/daemon.two" "killed before restart: resumed run restarts daemon.two"
+assert_eq "true" "$(gh_output_value deployed)" "killed before restart: deployed=true only after the restart"
+
+# --- a failed restart: every resume restarts again, a failed one reports --
+# --- a failure, and the run after it resumes again -----------------------
+new_fixture
+failkick_c0="$(git -C "$HOST" rev-parse HEAD)"
+push_commit_from_dev "failed-restart commit"
+failkick_state_dir="$(new_tmpdir)/state"
+failkick_calls="$(new_tmpdir)/launchctl-calls.log"
+KICK_FAIL=1 LAUNCHCTL_CALLS_LOG="$failkick_calls" run_deploy env PIERLESS_STATE_DIR="$failkick_state_dir" PIERLESS_KICK="daemon.one daemon.two"
+assert_exit 2 "$DEPLOY_EXIT" "failed restart: the pull run exits 2"
+assert_eq "$failkick_c0" "$(cat "$failkick_state_dir/last-hooked-sha" 2>/dev/null)" "failed restart: marker pins the pre-pull SHA"
+: > "$failkick_calls"
+KICK_FAIL=1 LAUNCHCTL_CALLS_LOG="$failkick_calls" run_deploy env PIERLESS_STATE_DIR="$failkick_state_dir" PIERLESS_KICK="daemon.one daemon.two"
+assert_exit 2 "$DEPLOY_EXIT" "failed restart on resume: exits 2"
+assert_contains "$DEPLOY_LOG" "hook: kickstart FAILED for daemon.one" "failed restart on resume: the restart ran and failed"
+assert_eq "false" "$(gh_output_value deployed)" "failed restart on resume: no all-clear"
+assert_eq "$failkick_c0" "$(cat "$failkick_state_dir/last-hooked-sha" 2>/dev/null)" "failed restart on resume: marker keeps its old value"
+: > "$failkick_calls"
+LAUNCHCTL_CALLS_LOG="$failkick_calls" run_deploy env PIERLESS_STATE_DIR="$failkick_state_dir" PIERLESS_KICK="daemon.one daemon.two"
+assert_exit 0 "$DEPLOY_EXIT" "failed restart, next run: exits 0"
+assert_contains "$DEPLOY_LOG" "hooks: resuming from ${failkick_c0}" "failed restart, next run: resumes again"
+failkick_content="$(cat "$failkick_calls")"
+assert_contains "$failkick_content" "kickstart -k gui/$(id -u)/daemon.one" "failed restart, next run: restarts daemon.one"
+assert_contains "$failkick_content" "kickstart -k gui/$(id -u)/daemon.two" "failed restart, next run: restarts daemon.two"
+assert_eq "true" "$(gh_output_value deployed)" "failed restart, next run: deployed=true after the restart"
+assert_eq "$(git -C "$HOST" rev-parse HEAD)" "$(cat "$failkick_state_dir/last-hooked-sha" 2>/dev/null)" "failed restart, next run: marker advances to HEAD"
+
+# --- a first deploy with no marker, killed inside a hook: the next run ---
+# --- runs the hooks again instead of reporting up to date ----------------
+new_fixture
+(
+  cd "$DEV" || exit 1
+  echo '{"name":"fixture","v":6}' > package.json
+  git add package.json
+  git commit -q -m "bump package.json for the killed-first-deploy case"
+  git push -q origin main
+)
+killfirst_state_dir="$(new_tmpdir)/state"
+killfirst_ran="$(new_tmpdir)/hook-ran"
+run_deploy env PIERLESS_STATE_DIR="$killfirst_state_dir" PIERLESS_INSTALL="package.json=kill -9 \$\$"
+assert_exit 137 "$DEPLOY_EXIT" "killed first deploy: the run was killed inside its hook"
+run_deploy env PIERLESS_STATE_DIR="$killfirst_state_dir" PIERLESS_INSTALL="package.json=touch $killfirst_ran"
+assert_exit 0 "$DEPLOY_EXIT" "killed first deploy: the next run exits 0"
+assert_not_contains "$DEPLOY_LOG" "up to date, nothing to deploy" "killed first deploy: the next run does not claim up to date"
+if [ -e "$killfirst_ran" ]; then
+  pass "killed first deploy: the next run runs the hook again"
+else
+  fail "killed first deploy: the next run runs the hook again"
+fi
+
 # ============================================================================
 # Services hook: a plist's log directories exist before it is bootstrapped
 # ============================================================================
