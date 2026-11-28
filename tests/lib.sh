@@ -109,14 +109,14 @@ stub_bin() {
   chmod +x "$PIERLESS_TEST_STUB_DIR/$name"
 }
 
-# require_script PATH — prints a skip note and exits 0 (whole file skipped)
-# when the sibling script under test is not yet on disk. Keeps the test
-# file itself always runnable and always syntax-checked.
+# require_script PATH — fails the whole file (exit 1) when the script
+# under test is missing: a deleted script must turn the run red, never
+# pass as a skip.
 require_script() {
   local path="$1"
   if [ ! -e "$path" ]; then
-    echo "SKIP - $path not present yet (not yet runnable)"
-    exit 0
+    echo "not ok - $path is missing"
+    exit 1
   fi
 }
 

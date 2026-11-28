@@ -5,7 +5,8 @@
 # test    tests/run.sh alone
 # lint    hooks + actionlint (if present), no tests
 # coverage  tests/run.sh under bash's own line tracing +
-#           scripts/ci/coverage-check.py — no kcov, no container
+#           scripts/ci/coverage-check.py at CI's total bar — no kcov,
+#           no container (the changed-lines bar runs only on PRs)
 #
 # pre-commit itself is one line: `uv tool install pre-commit`, or
 # `pipx install pre-commit`.
@@ -45,4 +46,4 @@ lint:
 coverage:
 	@mkdir -p coverage
 	PIERLESS_TRACE_FILE="$(CURDIR)/coverage/trace.log" bash tests/run.sh
-	python3 scripts/ci/coverage-check.py --trace coverage/trace.log
+	python3 scripts/ci/coverage-check.py --trace coverage/trace.log --min-total 100
