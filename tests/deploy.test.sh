@@ -1715,4 +1715,51 @@ assert_exit 0 "$DEPLOY_EXIT" "dry run, diverged: exits 0"
 assert_contains "$DEPLOY_STDOUT" "plan: diverged" "dry run, diverged: plan says the fast-forward would be refused"
 assert_eq "$dry_div_head" "$(git -C "$HOST" rev-parse HEAD)" "dry run, diverged: HEAD unchanged"
 
+# --- dry run: stranded on a squash-merged branch -> plans the heal, not a refusal ---
+# The host keeps a stale, unpruned origin/drystrand ref: the dry run must ask
+# the remote itself, as the real run asks its ref after a pruning fetch.
+new_fixture
+(
+  cd "$DEV" || exit 1
+  git checkout -q -b drystrand
+  echo "drystrand work" >> README.md
+  git add README.md
+  git commit -q -m "drystrand commit"
+  git push -q origin drystrand
+)
+git_quiet -C "$HOST" fetch origin drystrand
+git_quiet -C "$HOST" checkout drystrand
+(
+  cd "$DEV" || exit 1
+  git checkout -q main
+  git merge -q --squash drystrand
+  git commit -q -m "squash-merge drystrand"
+  git push -q origin main
+  git push -q origin --delete drystrand
+)
+git_quiet -C "$HOST" fetch origin main
+dry_strand_head="$(git -C "$HOST" rev-parse HEAD)"
+dry_strand_refs="$(git -C "$HOST" for-each-ref refs/remotes)"
+DEPLOY_ARGS="--dry-run" run_deploy env
+assert_exit 0 "$DEPLOY_EXIT" "dry run, stranded branch: exits 0"
+assert_contains "$DEPLOY_STDOUT" "plan: switch from drystrand to main" "dry run, stranded branch: plan names the heal"
+assert_contains "$DEPLOY_STDOUT" "plan: behind 1, ahead 0 of origin/main" "dry run, stranded branch: counts are for main, as the real run's"
+assert_contains "$DEPLOY_STDOUT" "plan: fast-forward 1 commit(s)" "dry run, stranded branch: plan is the healed fast-forward"
+assert_not_contains "$DEPLOY_STDOUT" "plan: diverged" "dry run, stranded branch: no refusal line"
+assert_eq "drystrand" "$(git -C "$HOST" symbolic-ref --short HEAD)" "dry run, stranded branch: still on the old branch"
+assert_eq "$dry_strand_head" "$(git -C "$HOST" rev-parse HEAD)" "dry run, stranded branch: HEAD unchanged"
+assert_eq "$dry_strand_refs" "$(git -C "$HOST" for-each-ref refs/remotes)" "dry run, stranded branch: remote-tracking refs unchanged"
+if [ -e "$DEPLOY_STATE_DIR" ]; then
+  fail "dry run, stranded branch: no state folder created"
+else
+  pass "dry run, stranded branch: no state folder created"
+fi
+
+# --- dry run: the current-branch remote read fails -> unknown, never a heal ---
+dry_lsfail_git="$(fake_git_failing 'ls-remote --exit-code*')"
+DEPLOY_ARGS="--dry-run" run_deploy env PATH="$dry_lsfail_git:$PATH"
+assert_exit 0 "$DEPLOY_EXIT" "dry run, branch read fails: exits 0"
+assert_contains "$DEPLOY_STDOUT" "plan: behind/ahead of origin/main unknown" "dry run, branch read fails: plan says unknown"
+assert_not_contains "$DEPLOY_STDOUT" "plan: switch" "dry run, branch read fails: no heal planned"
+
 test_summary_and_exit

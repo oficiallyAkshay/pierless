@@ -2,6 +2,7 @@
 
 One line per merged change, newest first. No version numbers here.
 
+- A dry run on a checkout left on a merged branch plans the switch back and the deploy the real run does, not a refusal: both runs take their verdict from one function.
 - A cancelled or timed-out deploy runs on_failure with a reason that says so, a setup refusal is the alert's reason instead of an earlier run's log line, and the example deploy job has a 30-minute limit.
 - A deploy that resumes unfinished hooks restarts the kick daemons before it reports a deploy, and a first deploy saves its pre-pull marker before any hook runs, so one killed inside a hook runs its hooks again.
 - Two deploys that wait on one stale lock can no longer both take it: removal runs under a second lock and checks the owner again first.
