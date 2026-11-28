@@ -84,6 +84,7 @@ run_deploy() {
     PIERLESS_LOG="$log" \
     PIERLESS_LOCK_DIR="$lockdir/lock" \
     PIERLESS_STATE_DIR="$statedir" \
+    PIERLESS_UNLOAD_WAIT=0 \
     GITHUB_OUTPUT="$ghoutput" \
     "$@" \
     bash "$DEPLOY_SCRIPT" ${DEPLOY_ARGS:-} ) >"$out" 2>"$err"
@@ -1777,5 +1778,110 @@ DEPLOY_ARGS="--dry-run" run_deploy env PATH="$dry_lsfail_git:$PATH"
 assert_exit 0 "$DEPLOY_EXIT" "dry run, branch read fails: exits 0"
 assert_contains "$DEPLOY_STDOUT" "plan: behind/ahead of origin/main unknown" "dry run, branch read fails: plan says unknown"
 assert_not_contains "$DEPLOY_STDOUT" "plan: switch" "dry run, branch read fails: no heal planned"
+
+# --- fetch loses a ref-lock race to another fetch: fetch again, deploy ---
+# Another fetch into the same repo moved origin/main forward between this
+# fetch reading the ref and locking it. The git wrapper below plays that
+# race RACE_FAIL_TIMES times (default once): it runs the real fetch, then
+# fails it with git's own ref-lock message.
+REAL_GIT="$(command -v git)"
+race_fixture() {
+  new_fixture
+  push_commit_from_dev "race commit"
+  RACE_OLD="$(git -C "$HOST" rev-parse refs/remotes/origin/main)"
+  RACE_NEW="$(git -C "$ORIGIN" rev-parse refs/heads/main)"
+  race_bindir="$(new_tmpdir)/race-bin"
+  mkdir -p "$race_bindir"
+  cat > "$race_bindir/git" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = fetch ]; then
+  n="\$(cat "$race_bindir/fetches" 2>/dev/null || echo 0)"
+  if [ "\$n" -lt "\${RACE_FAIL_TIMES:-1}" ]; then
+    echo "\$((n + 1))" > "$race_bindir/fetches"
+    "$REAL_GIT" "\$@" || exit \$?
+    echo "error: cannot lock ref 'refs/remotes/origin/main': is at \$RACE_FOUND but expected \$RACE_EXPECTED" >&2
+    exit 1
+  fi
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+  chmod +x "$race_bindir/git"
+}
+
+race_fixture
+run_deploy env PATH="$race_bindir:$PATH" RACE_FOUND="$RACE_NEW" RACE_EXPECTED="$RACE_OLD"
+assert_exit 0 "$DEPLOY_EXIT" "fetch ref-lock race, ref moved forward: exits 0"
+assert_contains "$DEPLOY_LOG" "fetched again" "fetch ref-lock race: log names the second fetch"
+assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "fetch ref-lock race: deploy still pulled"
+assert_not_contains "$DEPLOY_LOG" "FETCH FAILED" "fetch ref-lock race: no FETCH FAILED line"
+
+race_fixture
+run_deploy env PATH="$race_bindir:$PATH" RACE_FOUND="$RACE_OLD" RACE_EXPECTED="$RACE_NEW"
+assert_exit 5 "$DEPLOY_EXIT" "fetch ref-lock, ref found older than expected: exits 5"
+assert_contains "$DEPLOY_LOG" "FETCH FAILED" "fetch ref-lock, ref found older: logs FETCH FAILED"
+assert_not_contains "$DEPLOY_LOG" "fetched again" "fetch ref-lock, ref found older: no second fetch"
+
+race_fixture
+run_deploy env PATH="$race_bindir:$PATH" RACE_FOUND="$RACE_NEW" RACE_EXPECTED="$RACE_OLD" RACE_FAIL_TIMES=2
+assert_exit 5 "$DEPLOY_EXIT" "fetch ref-lock race twice: fetches again once only, exits 5"
+assert_contains "$DEPLOY_LOG" "FETCH FAILED" "fetch ref-lock race twice: logs FETCH FAILED"
+assert_eq "2" "$(cat "$race_bindir/fetches")" "fetch ref-lock race twice: two fetches, no third"
+
+# --- services hook: a changed plist waits for its old job to unload ---
+# A running KeepAlive job is still listed for a moment after bootout
+# returns; bootstrapping in that window fails with error 5. The stub lists
+# the label for UNLOAD_LISTED_FOR more checks after bootout, then drops it.
+unload_plist_fixture() {
+  new_fixture
+  (
+    cd "$DEV" || exit 1
+    mkdir -p services
+    echo '<plist unload v1/>' > services/ai.pierless.unload.plist
+    git add services/ai.pierless.unload.plist
+    git commit -q -m "add unload plist"
+    git push -q origin main
+  )
+  unload_home="$(new_tmpdir)"
+  unload_calls="$(new_tmpdir)/launchctl-calls.log"
+  : > "$unload_calls"
+}
+stub_bin launchctl '
+echo "launchctl $*" >> "$LAUNCHCTL_CALLS_LOG"
+case "$1" in
+  bootout) echo "${UNLOAD_LISTED_FOR:-0}" > "$LAUNCHCTL_CALLS_LOG.listed"; exit "${BOOTOUT_EXIT:-0}" ;;
+  print)
+    n="$(cat "$LAUNCHCTL_CALLS_LOG.listed" 2>/dev/null || echo 0)"
+    [ "$n" -gt 0 ] || exit 113
+    echo "$((n - 1))" > "$LAUNCHCTL_CALLS_LOG.listed"; exit 0 ;;
+  bootstrap)
+    n="$(cat "$LAUNCHCTL_CALLS_LOG.listed" 2>/dev/null || echo 0)"
+    [ "$n" -gt 0 ] && exit 5; exit 0 ;;
+  *) exit 0 ;;
+esac
+'
+unload_plist_fixture
+LAUNCHCTL_CALLS_LOG="$unload_calls" UNLOAD_LISTED_FOR=2 run_deploy env HOME="$unload_home" \
+  PIERLESS_SERVICES_DIR="services" PIERLESS_UNLOAD_WAIT=10
+assert_exit 0 "$DEPLOY_EXIT" "reload of a running job: exits 0"
+assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "reload of a running job: deploy logs PULLED"
+assert_not_contains "$DEPLOY_LOG" "bootstrap FAILED" "reload of a running job: no bootstrap failure"
+unload_seq="$(sed 's/ gui.*//' "$unload_calls" | tr '\n' ' ')"
+assert_eq "launchctl bootout launchctl print launchctl print launchctl print launchctl bootstrap " "$unload_seq" \
+  "reload of a running job: bootstrap waits until print no longer lists the label"
+
+unload_plist_fixture
+LAUNCHCTL_CALLS_LOG="$unload_calls" BOOTOUT_EXIT=3 run_deploy env HOME="$unload_home" \
+  PIERLESS_SERVICES_DIR="services" PIERLESS_UNLOAD_WAIT=10
+assert_exit 0 "$DEPLOY_EXIT" "bootout says no such process: exits 0"
+unload_seq="$(sed 's/ gui.*//' "$unload_calls" | tr '\n' ' ')"
+assert_eq "launchctl bootout launchctl print launchctl bootstrap " "$unload_seq" \
+  "bootout says no such process: bootstrap follows at once"
+
+unload_plist_fixture
+LAUNCHCTL_CALLS_LOG="$unload_calls" UNLOAD_LISTED_FOR=99 run_deploy env HOME="$unload_home" \
+  PIERLESS_SERVICES_DIR="services" PIERLESS_UNLOAD_WAIT=2
+assert_exit 2 "$DEPLOY_EXIT" "job never unloads: the wait is capped and the failed bootstrap still exits 2"
+assert_contains "$DEPLOY_LOG" "still listed 2s after bootout" "job never unloads: log names the capped wait"
+assert_contains "$DEPLOY_LOG" "hook: launchctl bootstrap FAILED for ai.pierless.unload" "job never unloads: bootstrap failure still logged"
 
 test_summary_and_exit
