@@ -1,6 +1,6 @@
 #!/bin/bash
 # on_failure / on_recovery command for pierless's action.yml. Sends one
-# email via the box's own `mail` (or `mailx`) command. Needs MAIL_TO set;
+# email via the box's own `mail` command. Needs MAIL_TO set;
 # mail delivery itself is whatever this Mac already has configured
 # (sendmail, postfix, an SMTP relay) — pierless does not set that up.
 set -uo pipefail

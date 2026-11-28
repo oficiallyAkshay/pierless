@@ -480,6 +480,22 @@ for guard_shape in dead-pid bare; do
   assert_contains "$DEPLOY_LOG" "PULLED 1 commit(s)" "stale break guard ($guard_shape): deploy actually pulled"
 done
 
+# --- lock folder whose parent is missing: never waited out as a held lock ---
+# sleep is still stubbed, so the old wait loop reached its 600s cap fast and
+# exited 3, blaming another deploy.
+new_fixture
+nolock_parent="$(new_tmpdir)/missing"
+run_deploy env PIERLESS_LOCK_DIR="$nolock_parent/lock"
+assert_exit 64 "$DEPLOY_EXIT" "custom lock folder, parent missing: refused at once as bad configuration"
+assert_contains "$DEPLOY_STDERR" "$nolock_parent" "custom lock folder, parent missing: names the folder"
+assert_not_contains "$DEPLOY_LOG" "10 minutes" "custom lock folder, parent missing: blames no other deploy"
+new_fixture
+nolock_home="$(new_tmpdir)"
+run_deploy env -u PIERLESS_LOCK_DIR HOME="$nolock_home"
+assert_exit 0 "$DEPLOY_EXIT" "default lock folder, parent missing: created, deploy proceeds"
+[ -d "$nolock_home/.pierless" ]
+assert_true "$?" "default lock folder, parent missing: its state folder is created"
+
 # --- PIERLESS_REPO unset -> bad config ---
 new_fixture
 out="$(mktemp)"; err="$(mktemp)"

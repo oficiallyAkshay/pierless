@@ -35,13 +35,13 @@ flowchart TD
   B -- yes --> C[Fetch, prune gone branches]
   C --> D{Checkout left on a<br/>squash-merged branch?}
   D -- yes --> D1[Switch back to main]
-  D -- no --> E
-  D1 --> E{Uncommitted edits?}
-  E -- yes --> E1[Park under a named stash]
-  E -- no --> F
-  E1 --> F{Fast-forward possible?}
+  D -- no --> F
+  D1 --> F{Fast-forward possible?}
   F -- no, diverged --> F1[Stop. Red with the cause]
-  F -- yes --> G[Fast-forward pull]
+  F -- yes --> E{Uncommitted edits?}
+  E -- yes --> E1[Park under a named stash]
+  E -- no --> G
+  E1 --> G[Fast-forward pull]
   G --> H[Install deps where a manifest changed]
   H --> I[Load new or changed daemons<br/>unload the ones renamed to disabled]
   I --> J[Kick the daemon launchd would coalesce]

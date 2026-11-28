@@ -14,7 +14,7 @@ The short version for an agent working in this repo. CONTRIBUTING.md carries the
 
 ## Rules that keep this repo small
 
-- No new runtime dependency: bash, git and the GitHub runner, nothing else.
+- No new runtime dependency: bash, git, gh and the GitHub runner, nothing else.
 - The gate (`bin/job-started-gate.sh`) makes no network call and runs no external command.
 - Every machine-specific value comes from config or the environment, never a hardcoded person, channel or host.
 - No release labels or version bumps in a PR. Releases are cut from a tag, by the owner only.

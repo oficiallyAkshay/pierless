@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# scripts/ci/claims.py — proves the README's claim badges from the code
-# itself, and writes the shields endpoint JSON those badges read.
+# scripts/ci/claims.py — proves the claims behind the README's badges from
+# the code itself. --badges also writes shields endpoint JSON for them; the
+# README's badges are static and read none of it.
 #
 # One implementation per claim, shared by tests/claims.test.sh and by CI,
 # so a badge can never say something the test did not just prove. A claim
