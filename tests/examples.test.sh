@@ -47,4 +47,9 @@ for key in repo on_failure on_recovery; do
 done
 assert_not_contains "$(value kick)" "com.example" "deploy example: kick names no sample label"
 
+# A moved tag must not change the code a copied example runs: the action is
+# pinned to a full commit, with its release tag beside it for Dependabot.
+grep -Eq '^ *- uses: oficiallyAkshay/pierless@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+$' "$HERE/../examples/deploy.yml"
+assert_true "$?" "deploy example: action pinned to a full commit with its release tag"
+
 test_summary_and_exit
