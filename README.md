@@ -75,7 +75,7 @@ The "secrets to rotate: 0" badge covers the action, which asks its caller for no
 
 Repo-only secrets: `TRAFFIC_TOKEN` (clonometer.yml, a fine-grained token for the clone and view counts; it needs Contents write on this repository)
 
-By default a failed deploy runs nothing. `on_failure` names the alert, `on_recovery` the all-clear. By default finished worktrees are pruned; `prune_worktrees: false` keeps them. By default dependencies reinstall only where a manifest changed; `install: none` turns that off.
+By default a failed deploy runs nothing. `on_failure` names the alert, `on_recovery` the all-clear. A cancelled or timed-out deploy also runs `on_failure`, and the example job ends a hung deploy after 30 minutes. By default finished worktrees are pruned; `prune_worktrees: false` keeps them. By default dependencies reinstall only where a manifest changed; `install: none` turns that off.
 
 ## Badges
 

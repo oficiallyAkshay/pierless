@@ -483,7 +483,7 @@ done
 # --- PIERLESS_REPO unset -> bad config ---
 new_fixture
 out="$(mktemp)"; err="$(mktemp)"
-( cd "$HOST" && env -u PIERLESS_REPO bash "$DEPLOY_SCRIPT" ) >"$out" 2>"$err"
+( cd "$HOST" && env -u PIERLESS_REPO PIERLESS_LOG="$(new_tmpdir)/deploy.log" bash "$DEPLOY_SCRIPT" ) >"$out" 2>"$err"
 DEPLOY_EXIT=$?
 assert_exit 64 "$DEPLOY_EXIT" "PIERLESS_REPO unset: exits 64"
 rm -f "$out" "$err"
@@ -897,7 +897,7 @@ assert_contains "$readme_on_release" "release work" "non-main branch: release co
 not_a_repo="$(new_tmpdir)/plainfolder"
 mkdir -p "$not_a_repo"
 out="$(mktemp)"; err="$(mktemp)"
-( PIERLESS_REPO="$not_a_repo" bash "$DEPLOY_SCRIPT" ) >"$out" 2>"$err"
+( PIERLESS_REPO="$not_a_repo" PIERLESS_LOG="$(new_tmpdir)/deploy.log" bash "$DEPLOY_SCRIPT" ) >"$out" 2>"$err"
 notrepo_ec=$?
 notrepo_err="$(cat "$err")"
 rm -f "$out" "$err"
