@@ -644,7 +644,7 @@ lost_ref_race() {
   [ -n "${pairs}" ] || return 1
   while read -r found expected; do
     git merge-base --is-ancestor "${expected}" "${found}" 2>/dev/null || return 1
-  done <<< "${pairs}"
+  done <<< "${pairs}"; :
   return 0
 }
 
