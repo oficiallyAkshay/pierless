@@ -1,4 +1,4 @@
-# .github/workflows/release.yml — a pushed vX.Y.Z tag runs the test suite,
+# .github/workflows/release.yml — a pushed v1.Y.Z tag runs the test suite,
 # cuts the GitHub release from the CHANGELOG, then moves the floating v1
 # tag onto it.
 #
@@ -12,8 +12,9 @@ name: Release
 
 on:
   push:
+    # Only the v1 line moves v1: a v2.0.0 or v10.0.0 tag starts no release.
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v1.[0-9]+.[0-9]+'
 
 permissions: {}
 
@@ -23,7 +24,12 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # The same OS list as ci.yml's tests job: the action runs on macOS.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     permissions:
       contents: read
