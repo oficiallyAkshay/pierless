@@ -380,6 +380,46 @@ prune_worktrees() {
   return 0
 }
 
+# decide TARGET — the one deploy verdict for the real run and the dry run;
+# changes nothing. A checkout on another branch with no remote copy (a
+# squash-merged or never-pushed branch) heals first: HEAL=1, compared as
+# ${BRANCH}. The dry run asks the remote, not its unpruned ref; a failed ask
+# leaves VERDICT unknown. Sets VERDICT (unknown, uptodate, resume, ahead,
+# diverged, behind), HEAL, CURRENT_BRANCH, CURRENT_SHA, BEHIND, AHEAD, RESUME_PRE.
+decide() {
+  local target="$1" rc=0
+  HEAL=0; VERDICT=unknown; RESUME_PRE=""
+  CURRENT_BRANCH=$(git symbolic-ref --short -q HEAD || echo "")
+  if [ -n "${CURRENT_BRANCH}" ] && [ "${CURRENT_BRANCH}" != "${BRANCH}" ]; then
+    if dry; then
+      git ls-remote --exit-code origin "refs/heads/${CURRENT_BRANCH}" >/dev/null 2>&1 || rc=$?
+    else
+      git rev-parse --verify --quiet "refs/remotes/origin/${CURRENT_BRANCH}" >/dev/null 2>&1 || rc=2
+    fi
+    [ "${rc}" = 0 ] || [ "${rc}" = 2 ] || return 0
+    [ "${rc}" = 2 ] && HEAL=1
+  fi
+  CURRENT_SHA=$(git rev-parse --verify --quiet HEAD)
+  # A checkout of a missing local ${BRANCH} creates it at the remote tip.
+  [ "${HEAL}" = 1 ] && CURRENT_SHA=$(git rev-parse --verify --quiet "refs/heads/${BRANCH}" || git rev-parse "${target}")
+  BEHIND=$(git rev-list --count "${CURRENT_SHA:-HEAD}..${target}" 2>/dev/null || echo "?")
+  AHEAD=$(git rev-list --count "${target}..${CURRENT_SHA:-HEAD}" 2>/dev/null || echo "?")
+  if [ "${BEHIND}" = "0" ] && [ "${AHEAD}" = "0" ]; then
+    VERDICT=uptodate
+    # A run that crashed before its hooks finished left an older marker.
+    if [ -n "${LAST_HOOKED_SHA}" ] && [ "${LAST_HOOKED_SHA}" != "${CURRENT_SHA}" ] \
+       && git rev-parse --verify --quiet "${LAST_HOOKED_SHA}" >/dev/null 2>&1; then
+      RESUME_PRE="${LAST_HOOKED_SHA}"; VERDICT=resume
+    fi
+  elif [ "${BEHIND}" = "0" ]; then
+    VERDICT=ahead
+  elif [ "${AHEAD}" != "0" ]; then
+    VERDICT=diverged
+  else
+    VERDICT=behind
+  fi
+}
+
 # --- Dry run: print the plan, change nothing -------------------------------
 # No lock, no log file, no fetch (a fetch moves the remote-tracking refs):
 # the remote tip is read with `git ls-remote`, which writes nothing. Counts
@@ -388,15 +428,15 @@ prune_worktrees() {
 if dry; then
   cd "${REPO}" || { log "FATAL: cannot cd to ${REPO}"; exit 64; }
   export GIT_OPTIONAL_LOCKS=0   # git status must not refresh the index
-  CURRENT_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
   REMOTE_SHA=$(git ls-remote origin "refs/heads/${BRANCH}" 2>/dev/null | cut -f1)
   PARKED_FILES="$(git status --porcelain 2>/dev/null | cut -c4-)"
   PARKED_COUNT=0
   [ -n "${PARKED_FILES}" ] && PARKED_COUNT=$(printf '%s\n' "${PARKED_FILES}" | grep -c .)
   names_joined="$(printf '%s' "${PARKED_FILES}" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')"
 
-  if [ -z "${CURRENT_SHA}" ] || [ -z "${REMOTE_SHA}" ] \
-     || ! git cat-file -e "${REMOTE_SHA}^{commit}" 2>/dev/null; then
+  VERDICT=unknown
+  [ -n "${REMOTE_SHA}" ] && git cat-file -e "${REMOTE_SHA}^{commit}" 2>/dev/null && decide "${REMOTE_SHA}"
+  if [ "${VERDICT}" = "unknown" ] || [ -z "${CURRENT_SHA}" ]; then
     log "plan: fetch not run (refs are never updated in a dry run)"
     log "plan: behind/ahead of origin/${BRANCH} unknown — the remote commit is not readable without a fetch"
     if [ "${PARKED_COUNT}" -gt 0 ]; then
@@ -408,25 +448,20 @@ if dry; then
     exit 0
   fi
 
-  BEHIND=$(git rev-list --count "HEAD..${REMOTE_SHA}" 2>/dev/null || echo "?")
-  AHEAD=$(git rev-list --count "${REMOTE_SHA}..HEAD" 2>/dev/null || echo "?")
   log "plan: fetch not run (refs are never updated in a dry run)"
+  [ "${HEAL}" = "1" ] && log "plan: switch from ${CURRENT_BRANCH} to ${BRANCH} — its origin copy is gone, likely squash-merged"
   log "plan: behind ${BEHIND}, ahead ${AHEAD} of origin/${BRANCH} (${REMOTE_SHA})"
 
-  DRY_PRE=""
-  if [ "${BEHIND}" = "0" ] && [ "${AHEAD}" = "0" ]; then
-    if [ -n "${LAST_HOOKED_SHA}" ] && [ "${LAST_HOOKED_SHA}" != "${CURRENT_SHA}" ] \
-       && git rev-parse --verify --quiet "${LAST_HOOKED_SHA}" >/dev/null 2>&1; then
-      DRY_PRE="${LAST_HOOKED_SHA}"
-      log "plan: up to date, nothing to pull — hooks would resume from ${DRY_PRE}"
-    else
-      log "plan: up to date, nothing to deploy"
-      exit 0
-    fi
-  elif [ "${AHEAD}" != "0" ] && [ "${BEHIND}" = "0" ]; then
+  DRY_PRE="${RESUME_PRE}"
+  if [ "${VERDICT}" = "resume" ]; then
+    log "plan: up to date, nothing to pull — hooks would resume from ${DRY_PRE}"
+  elif [ "${VERDICT}" = "uptodate" ]; then
+    log "plan: up to date, nothing to deploy"
+    exit 0
+  elif [ "${VERDICT}" = "ahead" ]; then
     log "plan: local has un-pushed commits — would not pull"
     exit 0
-  elif [ "${AHEAD}" != "0" ]; then
+  elif [ "${VERDICT}" = "diverged" ]; then
     log "plan: diverged — fast-forward would be refused (exit 4)"
     exit 0
   else
@@ -572,44 +607,26 @@ if ! git fetch --prune origin --quiet 2>> "${LOG}"; then
 fi
 debug "fetch --prune origin OK"
 
-# --- Self-heal: checkout stranded on a squash-merged branch -----------
-# A worktree left on a feature branch whose PR has since squash-merged has
-# no origin/<branch> ref left (branch deleted on merge) and a HEAD that has
-# diverged from origin/${BRANCH} — ff-only would refuse forever.
-CURRENT_BRANCH=$(git symbolic-ref --short -q HEAD || echo "")
-if [ -n "${CURRENT_BRANCH}" ] && [ "${CURRENT_BRANCH}" != "${BRANCH}" ]; then
-  if ! git rev-parse --verify --quiet "refs/remotes/origin/${CURRENT_BRANCH}" >/dev/null 2>&1; then
-    log "SELF-HEAL: HEAD on ${CURRENT_BRANCH} (origin ref gone, likely squash-merged) — switching to ${BRANCH}"
-    # The branch is kept: no remote copy also matches a branch never pushed.
-    if ! git checkout "${BRANCH}" >> "${LOG}" 2>&1; then
-      log "SELF-HEAL FAILED: could not checkout ${BRANCH} from ${CURRENT_BRANCH}"
-      write_output false 0
-      exit 4
-    fi
+# --- Decide BEFORE touching anything whether a pull is needed, then heal -
+decide "origin/${BRANCH}"
+debug "behind=${BEHIND} ahead=${AHEAD} verdict=${VERDICT}"
+if [ "${HEAL}" = "1" ]; then
+  log "SELF-HEAL: HEAD on ${CURRENT_BRANCH} (origin ref gone, likely squash-merged) — switching to ${BRANCH}"
+  # The branch is kept: no remote copy also matches a branch never pushed.
+  if ! git checkout "${BRANCH}" >> "${LOG}" 2>&1; then
+    log "SELF-HEAL FAILED: could not checkout ${BRANCH} from ${CURRENT_BRANCH}"
+    write_output false 0
+    exit 4
   fi
 fi
 
-# --- Compare: decide BEFORE touching anything whether a pull is needed -
-BEHIND=$(git rev-list --count "HEAD..origin/${BRANCH}" 2>/dev/null || echo "?")
-AHEAD=$(git rev-list --count "origin/${BRANCH}..HEAD" 2>/dev/null || echo "?")
-debug "behind=${BEHIND} ahead=${AHEAD}"
-CURRENT_SHA=$(git rev-parse HEAD)
-
-if [ "${BEHIND}" = "0" ] && [ "${AHEAD}" = "0" ]; then
+if [ "${VERDICT}" = "uptodate" ]; then
   # Up to date: no fast-forward, so the working tree is never touched.
-  # But a prior run may have crashed after pulling and before its hooks
-  # (or prune) finished — the marker still names that older SHA, so catch
-  # those hooks up now even though there is nothing new to pull.
-  RESUME_PRE=""
-  if [ -n "${LAST_HOOKED_SHA}" ] && [ "${LAST_HOOKED_SHA}" != "${CURRENT_SHA}" ] \
-     && git rev-parse --verify --quiet "${LAST_HOOKED_SHA}" >/dev/null 2>&1; then
-    RESUME_PRE="${LAST_HOOKED_SHA}"
-  fi
-  if [ -z "${RESUME_PRE}" ]; then
-    log "up to date, nothing to deploy"
-    write_output false 0
-    exit 0
-  fi
+  log "up to date, nothing to deploy"
+  write_output false 0
+  exit 0
+fi
+if [ "${VERDICT}" = "resume" ]; then
   log "up to date, nothing new to pull — hooks never finished last time"
   log "hooks: resuming from ${RESUME_PRE}"
   CHANGED=$(git diff --name-only "${RESUME_PRE}" HEAD 2>>"${LOG}")
@@ -628,13 +645,13 @@ if [ "${BEHIND}" = "0" ] && [ "${AHEAD}" = "0" ]; then
   exit 0
 fi
 
-if [ "${BEHIND}" = "0" ] && [ "${AHEAD}" != "0" ]; then
+if [ "${VERDICT}" = "ahead" ]; then
   log "AHEAD ${AHEAD} (local has un-pushed commits — not pulling)"
   write_output false 0
   exit 0
 fi
 
-if [ "${AHEAD}" != "0" ]; then
+if [ "${VERDICT}" = "diverged" ]; then
   log "DIVERGED: ahead ${AHEAD}, behind ${BEHIND} of origin/${BRANCH} — fast-forward refused, needs a hand"
   write_output false 0
   exit 4
