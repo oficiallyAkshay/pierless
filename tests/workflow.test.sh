@@ -60,4 +60,14 @@ for id in $job_ids; do
   fi
 done
 
+# `make coverage` claims to run the CI coverage gate locally, so its
+# total bar must be the one CI applies on main (no --base locally).
+ci_total="$(grep -o 'coverage-check.py --trace coverage/trace.log --min-total [0-9.]*' "$CI_FILE" | awk '{print $NF}')"
+make_total="$(grep -o 'coverage-check.py --trace coverage/trace.log --min-total [0-9.]*' "$REPO_ROOT/Makefile" | awk '{print $NF}')"
+if [ -n "$ci_total" ] && [ "$make_total" = "$ci_total" ]; then
+  pass "coverage: make coverage uses CI's total bar ($ci_total)"
+else
+  fail "coverage: make coverage uses CI's total bar (ci [$ci_total], Makefile [$make_total])"
+fi
+
 test_summary_and_exit

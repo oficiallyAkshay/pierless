@@ -9,7 +9,7 @@ An agent reads `AGENTS.md` first for the short version of this file. The system 
 1. **Branch** from `main`. Name it for the outcome, not the file.
 2. **Say what changes for the person running it** in one sentence before you write code. If you cannot, the change is not ready.
 3. **Write the test first**, in `tests/`. Tests spawn the real script with a temp repo and stubbed `launchctl`/`gh`; they never reimplement a script's logic. A gate change gets a refuse case and an allow case.
-4. **Run the local checks**: `make hooks` once per clone installs the pre-commit hooks, then `make check` runs those same hooks, actionlint and the tests, and `make coverage` adds coverage: the commands CI runs, from the same config.
+4. **Run the local checks**: `make hooks` once per clone installs the pre-commit hooks, then `make check` runs those same hooks, actionlint and the tests, and `make coverage` adds coverage at CI's 100 percent total bar. The 90 percent changed-lines bar needs a pull request's base, so only CI runs it.
 5. **Open the PR** with the template filled in: what changes for the operator, what does not change, how to undo it.
 6. **CI must be green** on every check before merge. Nothing is merged with a check skipped.
 7. **No release labels, no version bumps in PRs.** Releases are cut separately; a PR never carries release metadata.
@@ -22,7 +22,7 @@ Every check runs in parallel on each PR; a typical run finishes in under two min
 | --- | --- | --- |
 | checks: the pre-commit hooks (shellcheck at `--severity=error`, markdown lint, zizmor over every workflow file), then pinact verifies every `uses:` is pinned, then gitleaks over the whole history and actionlint over every workflow file | Linux | yes |
 | tests: gate, deploy script, installer dry-run, workflow shape; the macOS leg also renders the launchd definition and lints it | Linux and macOS | yes |
-| coverage: bash line tracing over the test run, changed lines at or above 90 percent, badge published on main | Linux | yes |
+| coverage: bash line tracing over the test run, total lines at 100 percent, changed lines at or above 90 percent on a pull request, badge published on main | Linux | yes |
 | `ci` gate: passes only when every check above reports success | Linux | yes, and it is the only check merge asks for |
 
 The checks above feed the gate, which fails on any one of them that is red, skipped or cancelled. That is why the branch rule names one context and not the whole list: a check added later is covered the moment it is wired into the gate's `needs:`, and `tests/workflow.test.sh` fails if one is left out.
