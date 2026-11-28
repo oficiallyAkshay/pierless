@@ -187,7 +187,6 @@ jobs:
           t = d["total"]
           print(t, "green" if t >= 90 else ("yellow" if t >= 75 else "red"))
           ')"
-          python3 scripts/ci/badge.py coverage "${total}%" "$color" > coverage.svg
           python3 -c "
           import json
           json.dump({'schemaVersion': 1, 'label': 'coverage', 'message': '${total}%', 'color': '${color}'},
@@ -195,7 +194,7 @@ jobs:
           "
           work="$(mktemp -d)"
           mkdir -p "$work/new"
-          cp coverage.svg coverage.json "$work/new"
+          cp coverage.json "$work/new"
           cd "$work"
           git init -q -b coverage
           git config user.email "actions@github.com"
@@ -212,8 +211,8 @@ jobs:
                fetch -q --depth 1 "https://github.com/${REPO}.git" coverage 2>/dev/null; then
             git checkout -q FETCH_HEAD -- . || true
           fi
-          cp new/coverage.svg new/coverage.json .
-          git add -A coverage.svg coverage.json
+          cp new/coverage.json .
+          git add -A coverage.json
           git commit -q -m "coverage badge: ${total}%"
           # Same header-injection shape actions/checkout uses so the
           # token never appears in the remote URL or in any log line. The
