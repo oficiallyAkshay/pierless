@@ -121,8 +121,10 @@ runs:
         reason="$(tail -n 1 "${resolved_log}" 2>/dev/null || true)"
         echo "reason=${reason}" >> "${GITHUB_OUTPUT}"
 
+    # always(): a cancelled or timed-out job still alerts. Its deploy never
+    # wrote exit_code, so the step fills in the code and the reason.
     - name: Failure command
-      if: steps.deploy.outputs.exit_code != '0'
+      if: always() && steps.deploy.outputs.exit_code != '0'
       shell: bash
       env:
         PIERLESS_STATE_DIR: ${{ inputs.state_dir }}
@@ -135,6 +137,10 @@ runs:
         PIERLESS_TO_SHA: ${{ steps.deploy.outputs.to_sha }}
       run: |
         set -uo pipefail
+        if [ -z "$PIERLESS_EXIT_CODE" ]; then
+          export PIERLESS_EXIT_CODE=1
+          export PIERLESS_REASON="deploy was cancelled or timed out before it finished"
+        fi
         state_dir="${PIERLESS_STATE_DIR:-$HOME/.pierless}"
         mkdir -p "$state_dir"
         echo "$PIERLESS_RUN_URL" > "$state_dir/last-failed"

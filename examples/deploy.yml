@@ -22,6 +22,7 @@ permissions:
 jobs:
   deploy:
     runs-on: [self-hosted, macOS, pierless]
+    timeout-minutes: 30 # a hung deploy ends and alerts; the lock wait alone may take 10
     steps:
       - uses: oficiallyAkshay/pierless@v1
         with:

@@ -77,16 +77,6 @@ set -uo pipefail
 ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
 
 # --- Configuration ---------------------------------------------------------
-REPO="${PIERLESS_REPO:-}"
-if [ -z "${REPO}" ]; then
-  echo "[$(ts)] PIERLESS_REPO is not set — refusing to guess a checkout" >&2
-  exit 64
-fi
-if ! git -C "${REPO}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  echo "[$(ts)] PIERLESS_REPO=${REPO} is not a git checkout" >&2
-  exit 64
-fi
-
 DRY_RUN=0
 [ "${PIERLESS_DRY_RUN:-}" = "1" ] && DRY_RUN=1
 for arg in "$@"; do
@@ -120,6 +110,21 @@ debug() {
   [ "${PIERLESS_DEBUG:-}" = "1" ] && log "debug: $*"
   return 0
 }
+
+# refuse MESSAGE — a bad-configuration stop. The line goes to stderr and to
+# the log, so the action's alert quotes it, not an earlier run's last line.
+refuse() {
+  local line
+  line="[$(ts)] $*"
+  dry || echo "${line}" 2>/dev/null >> "${LOG}"
+  echo "${line}" >&2
+  exit 64
+}
+
+REPO="${PIERLESS_REPO:-}"
+[ -z "${REPO}" ] && refuse "PIERLESS_REPO is not set — refusing to guess a checkout"
+git -C "${REPO}" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+  || refuse "PIERLESS_REPO=${REPO} is not a git checkout"
 
 PIERLESS_TRIGGER="${PIERLESS_TRIGGER:-manual}"
 log "trigger=${PIERLESS_TRIGGER} repo=${REPO}"

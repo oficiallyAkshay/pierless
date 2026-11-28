@@ -46,5 +46,10 @@ for key in repo on_failure on_recovery; do
   esac
 done
 assert_not_contains "$(value kick)" "com.example" "deploy example: kick names no sample label"
+# A hung deploy must end, so the failure command can alert on it.
+case "$(value timeout-minutes)" in
+  [1-9]*) pass "deploy example: the deploy job sets timeout-minutes" ;;
+  *) fail "deploy example: the deploy job sets timeout-minutes (got [$(value timeout-minutes)])" ;;
+esac
 
 test_summary_and_exit

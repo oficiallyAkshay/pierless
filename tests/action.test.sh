@@ -223,4 +223,51 @@ assert_eq "1" "$(wc -l < "$rbase/recovery-calls" 2>/dev/null | tr -d ' ')" "on_r
 recovery_cycle "none"
 assert_eq "1" "$(wc -l < "$rbase/recovery-calls" 2>/dev/null | tr -d ' ')" "on_recovery: not run again on the next clean run"
 
+# A cancelled or timed-out job reaches the failure step, which then names
+# the cause. failure_if is the step's `if:` text; failure_runs evaluates it
+# the way GitHub does: with no status function in it, success() is implied,
+# and a cancelled job is not a success.
+failure_if="$(awk '$0 == "    - name: Failure command" { f = 1; next }
+  f && /^      if: / { sub(/^      if: /, ""); print; exit }' "$ACTION_FILE")"
+assert_contains "$failure_if" "always()" "failure step: condition holds a status check that a cancelled or timed-out job passes"
+# failure_runs EXIT_CODE CANCELLED — 0 when the step would run.
+failure_runs() {
+  local expr="$failure_if" yes="'1'" ok="'1'" code="'$1'"
+  [ "$2" = "yes" ] && ok="''"
+  case "$expr" in *"()"*) ;; *) expr="success() && ($expr)" ;; esac
+  expr="${expr//always()/$yes}"
+  expr="${expr//success()/$ok}"
+  expr="${expr//steps.deploy.outputs.exit_code/$code}"
+  eval "[[ $expr ]]"
+}
+failure_runs "" yes; assert_true "$?" "failure step: runs for a cancelled or timed-out job with no exit_code"
+failure_runs 2 no; assert_true "$?" "failure step: runs for a non-zero exit_code"
+if failure_runs 0 no; then fail "failure step: skipped on a successful run"; else pass "failure step: skipped on a successful run"; fi
+
+cbase="$(new_tmpdir)"
+(
+  cd "$outside" || exit 1
+  HOME="$fake_home" PIERLESS_STATE_DIR="$cbase/state" \
+  PIERLESS_ON_FAILURE="printf '%s|%s' \"\$PIERLESS_EXIT_CODE\" \"\$PIERLESS_REASON\" > $cbase/failure-env" \
+  PIERLESS_RUN_URL="run" PIERLESS_EXIT_CODE="" PIERLESS_REASON="" \
+  bash -c "$(step_script 'Failure command')" >/dev/null 2>&1
+)
+assert_contains "$(cat "$cbase/failure-env" 2>/dev/null)" "cancelled or timed out" "failure step: with no exit_code the reason names the cancel or timeout"
+assert_contains "$(cat "$cbase/failure-env" 2>/dev/null)" "1|" "failure step: with no exit_code the command gets a non-zero exit code"
+
+# A setup refusal is the reason, never a line an earlier run left in the log.
+sbase="$(new_tmpdir)"
+mkdir -p "$sbase/plain"
+echo "[earlier] PULLED 1 commit(s) from an earlier run" > "$sbase/deploy.log"
+: > "$sbase/out"
+(
+  cd "$outside" || exit 1
+  HOME="$fake_home" PIERLESS_REPO="$sbase/plain" PIERLESS_LOG="$sbase/deploy.log" \
+  PIERLESS_ACTION_PATH="$REPO_ROOT" GITHUB_OUTPUT="$sbase/out" \
+  bash -c "$(step_script Deploy)" >/dev/null 2>&1
+)
+setup_reason="$(sed -n 's/^reason=//p' "$sbase/out")"
+assert_contains "$setup_reason" "is not a git checkout" "setup refusal: the reason is the refusal"
+assert_not_contains "$setup_reason" "earlier run" "setup refusal: the reason is not an earlier run's line"
+
 test_summary_and_exit

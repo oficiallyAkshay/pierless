@@ -69,7 +69,7 @@ assert_contains "$uninstall_out" "usage: uninstall-runner.sh" "uninstall verb: r
 # reached it is deploy.sh's own first refusal: PIERLESS_REPO unset is bad
 # configuration (64) and the line naming it comes from deploy.sh itself.
 out="$(mktemp)"; err="$(mktemp)"
-( env -u PIERLESS_REPO bash "$CLI" deploy ) >"$out" 2>"$err"
+( env -u PIERLESS_REPO PIERLESS_LOG="$(new_tmpdir)/deploy.log" bash "$CLI" deploy ) >"$out" 2>"$err"
 deploy_ec=$?
 deploy_err="$(cat "$err")"
 rm -f "$out" "$err"
