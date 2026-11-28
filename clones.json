@@ -1,0 +1,18 @@
+{
+  "badge": "244 (7d) \u2022 3,085 (all-time)",
+  "last7": 244,
+  "last7_short": "244",
+  "metric": "clones",
+  "repo": "oficiallyAkshay/pierless",
+  "schema": 1,
+  "since": "2026-09-06",
+  "total": 3085,
+  "total_short": "3,085",
+  "updated": "2026-11-28",
+  "window": {
+    "count": 365,
+    "days": 14,
+    "uniques": 109
+  },
+  "window_short": "365"
+}
