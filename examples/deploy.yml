@@ -25,11 +25,11 @@ jobs:
     steps:
       - uses: oficiallyAkshay/pierless@v1
         with:
-          repo: ${{ github.workspace }}           # path to the live checkout on this Mac
+          repo: /Users/you/myapp                   # path to the live checkout on this Mac; replace with your own absolute path
           install: ""                              # "" = npm install where package(-lock).json changed; "none" disables
           services_dir: scripts/launchd            # repo-relative folder of launchd plists; "" skips
-          kick: com.example.dashboard               # space-separated labels to kickstart after a pull
+          kick: ""                                 # space-separated labels to kickstart after a pull; put your own launchd labels here
           prune_worktrees: "true"                  # delete worktrees whose PR merged
           self_label: pierless.runner              # the runner's own plist label; never reloaded from here
-          on_failure: ./bin/on-failure-slack.sh  # runs once per failing deploy; "" disables. Copy an examples/on-failure-*.sh in.
-          on_recovery: ./bin/on-failure-slack.sh # same script — PIERLESS_EXIT_CODE=0 tells it this is the recovery call
+          on_failure: /Users/you/myapp/bin/on-failure-slack.sh  # runs once per failing deploy; "" disables. Copy an examples/on-failure-*.sh in; replace with its absolute path
+          on_recovery: /Users/you/myapp/bin/on-failure-slack.sh # same script — PIERLESS_EXIT_CODE=0 tells it this is the recovery call; replace with its absolute path
