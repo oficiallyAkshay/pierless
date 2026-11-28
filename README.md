@@ -46,7 +46,7 @@ Look elsewhere when:
 - You deploy containers across a fleet of servers: [basecamp/kamal](https://github.com/basecamp/kamal) fits that shape.
 - You want the runner and the gate built for you, with nothing to script: pierless is the script.
 
-Install it by cloning this repo onto the Mac and running its install command, which registers the runner and puts the gate outside every checkout so no branch can edit it. Add `oficiallyAkshay/pierless@a3b6d9ef67dcb4998501eaec20e3631373d9836b # v1.0.1` to your own deploy workflow next; every option is documented in `examples/deploy.yml`. The full commit pins the code your Mac runs, so a moved tag changes nothing. Turn on Dependabot for GitHub Actions in your own repository (a `github-actions` entry in `.github/dependabot.yml`), and each new pierless release reaches you as a pull request to review.
+Install it by cloning this repo onto the Mac and running its install command, which registers the runner and puts the gate outside every checkout so no branch can edit it. Add `oficiallyAkshay/pierless@a3b6d9ef67dcb4998501eaec20e3631373d9836b # v1.0.1` to your own deploy workflow next; every option is documented in `action.yml`, and `examples/deploy.yml` shows the common ones. The full commit pins the code your Mac runs, so a moved tag changes nothing. Turn on Dependabot for GitHub Actions in your own repository (a `github-actions` entry in `.github/dependabot.yml`), and each new pierless release reaches you as a pull request to review.
 
 ## How it compares
 
@@ -60,7 +60,7 @@ Install it by cloning this repo onto the Mac and running its install command, wh
 
 ## Security and limits
 
-The installer needs `gh` signed in once. It mints a runner registration token, used immediately and never written to disk. The deploy step uses only `GITHUB_TOKEN`. It already has one, granted to its own run.
+The installer needs `gh` signed in once. It mints a runner registration token, used immediately and never written to disk. The deploy step gets no token from the workflow: its `git` and `gh` calls use the sign-ins of the runner's user on the Mac.
 
 - ❌ opens an inbound port
 - ❌ makes a network call from the gate

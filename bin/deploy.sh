@@ -505,6 +505,15 @@ fi
 # faster one's NEW live lock. Removal therefore takes a second mkdir lock
 # (LOCK_DIR.break) and checks staleness again while holding it: a waiter that
 # loses the guard just waits, and one that wins sees the new owner is live.
+#
+# A missing parent makes every mkdir fail as if the lock were held: the
+# default parent is created like the other state folders, and a custom one
+# that is missing is refused at once, so a mistyped path is shown.
+if [ -z "${PIERLESS_LOCK_DIR:-}" ]; then
+  mkdir -p "$(dirname "${LOCK_DIR}")" 2>/dev/null || true
+elif [ ! -d "$(dirname "${LOCK_DIR}")" ]; then
+  refuse "PIERLESS_LOCK_DIR=${LOCK_DIR}: its parent folder $(dirname "${LOCK_DIR}") does not exist"
+fi
 LOCK_PID_FILE="${LOCK_DIR}/pid"
 LOCK_BREAK_DIR="${LOCK_DIR}.break"
 LOCK_ACQUIRED=0

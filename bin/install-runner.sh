@@ -10,10 +10,11 @@
 # load the LaunchAgent → verify every piece actually took.
 #
 # UNSUPPORTED: hand-starting the runner (`cd <runner-dir> && ./run.sh`)
-# outside launchd. <runner-dir>/.env — the only place
-# ACTIONS_RUNNER_HOOK_JOB_STARTED is set on the launchd path — is read by
-# the plist's command line, not by run.sh itself, so a hand-started runner
-# picks up no hook and runs every job it is handed UNGATED.
+# outside launchd. On the launchd path the plist's EnvironmentVariables set
+# ACTIONS_RUNNER_HOOK_JOB_STARTED and the PIERLESS_ALLOWED_* settings; its
+# command line reads no .env. The installer also writes them to
+# <runner-dir>/.env, but a hand-started runner gets none of the plist's
+# settings, so nothing here vouches that it runs gated.
 #
 # RESIDUAL: a refused job's `uses:` actions are still downloaded into
 # <runner-dir>/_work/_actions before the gate ever runs — the runner

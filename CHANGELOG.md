@@ -2,6 +2,7 @@
 
 One line per merged change, newest first. No version numbers here.
 
+- A deploy whose lock folder has no parent no longer waits ten minutes and blames another deploy: the default parent is created, and a custom lock_dir with a missing parent is refused at once with its path. Eight docs and comments now say what the code does.
 - CI publishes only the coverage numbers file the README badge reads: the hand-drawn coverage image and its script are gone.
 - A dry run on a checkout left on a merged branch plans the switch back and the deploy the real run does, not a refusal: both runs take their verdict from one function.
 - A cancelled or timed-out deploy runs on_failure with a reason that says so, a setup refusal is the alert's reason instead of an earlier run's log line, and the example deploy job has a 30-minute limit.

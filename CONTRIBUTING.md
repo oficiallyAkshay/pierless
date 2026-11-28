@@ -41,12 +41,12 @@ Two workflows sit outside the gate. `readme-check.yml` runs readmerlin against t
 | Deploy script | fast-forward, diverged, dirty tree parked, stranded branch healed, hook failure exits non-zero after the remaining hooks run, second run waits on the lock |
 | Hooks | install only where a manifest changed; load a new daemon definition; unload one renamed to disabled; the runner's own definition is never reloaded from inside a deploy |
 | Installer | dry-run creates nothing and prints every action with the token redacted; checksum mismatch refuses; verify step fails when the gate on disk differs from the repo copy |
-| Workflow | the queue never cancels a running deploy; the failure command runs once; the recovery command runs only after a real pull |
+| Workflow | the queue never cancels a running deploy; the failure command runs once; the recovery command runs only after a run that reports deployed: a real pull, or a run that finishes unfinished hooks |
 
 ## Rules that keep it small
 
 - The gate makes no network calls and runs no external command beyond bash builtins. It has no timeout, so it must finish on its own.
-- No new runtime dependencies. bash, git, and the GitHub runner, nothing else.
+- No new runtime dependencies. bash, git, gh, and the GitHub runner, nothing else.
 - Every machine-specific value comes from the config file or the environment. Nothing in the code names a person, a channel, or a host.
 - A comment explains why, never what. If the what needs a comment, the code is wrong.
 

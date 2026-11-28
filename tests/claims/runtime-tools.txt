@@ -1,7 +1,6 @@
 # tests/claims/runtime-tools.txt — every external command bin/* invokes.
 #
-# The README's "runtime tools" badge is the unmarked list below, so this
-# file is a claim, not a note: tests/claims.test.sh fails when bin/ calls
+# This file is a claim, not a note: tests/claims.test.sh fails when bin/ calls
 # something that is not here AND when something here is no longer called.
 # Add a line only after deciding the new dependency is worth asking a
 # person to install.
